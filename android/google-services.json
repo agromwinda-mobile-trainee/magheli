@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "132576266640",
+    "project_id": "maghali",
+    "storage_bucket": "maghali.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:132576266640:android:6478c6b4bb44fc39bb0b15",
+        "android_client_info": {
+          "package_name": "com.example.maghali"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDhWXpoWXTsstZ0l8y8_7CMPRFH59qZxZA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:132576266640:android:fc1193a9701b5039bb0b15",
+        "android_client_info": {
+          "package_name": "com.exemple.maghali"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDhWXpoWXTsstZ0l8y8_7CMPRFH59qZxZA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
