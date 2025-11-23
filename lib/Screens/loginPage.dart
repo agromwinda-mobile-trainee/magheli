@@ -3,8 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import 'CashierDashboard.dart';
-import 'ProfileCompletionPage.dart';
+import '../common/role_router.dart';
 
 
 class LoginPage extends StatefulWidget {
@@ -94,18 +93,11 @@ class _LoginPageState extends State<LoginPage> {
         return;
       }
 
-      if (userDoc.data()!['profileCompleted'] == true) {
-        // Récupérer le nom de l'activité
-        String activityName = userDoc['activityName'] ?? 'Activité';
-        // 🟩 Save in prefs
-        // redirect to dashboard cashier
-        Navigator.pushReplacement(
-            context, MaterialPageRoute(builder: (_) => CashierDashboard(activityName: activityName, cashierId: uid,)));
-      } else {
-        Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (_) => ProfileCompletionPage(uid: uid)));
-      }
+      // Sauvegarder profileCompleted dans prefs
+      await prefs.setBool("profileCompleted", userDoc.data()!['profileCompleted'] ?? false);
+      
+      // Router selon le rôle
+      await RoleRouter.routeAfterLogin(context, uid);
     } catch (e) {
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text(e.toString())));

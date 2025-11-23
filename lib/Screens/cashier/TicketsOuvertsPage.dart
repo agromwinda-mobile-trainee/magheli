@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-import 'EditTicketPage.dart';
 import 'TicketDetailsPage.dart';
 
 class TicketsOuvertsPage extends StatelessWidget {
@@ -48,16 +47,41 @@ class TicketsOuvertsPage extends StatelessWidget {
             itemCount: tickets.length,
             itemBuilder: (context, index) {
               final t = tickets[index];
-              final total = t['total'];
+              final total = (t['total'] ?? 0).toDouble();
               final server = t['serverName'] ?? "Serveur inconnu";
+              final products = t['products'] as List<dynamic>? ?? [];
+              final productsCount = products.length;
 
               return Card(
                 margin: const EdgeInsets.all(12),
                 child: ListTile(
                   title: Text("Ticket • $server"),
-                  subtitle: Text("Total : ${total.toString()} FC"),
-                  trailing: const Icon(Icons.chevron_right),
-
+                  subtitle: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text("Total : ${total.toStringAsFixed(2)} FC",
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                      ),
+                      Text("$productsCount produit${productsCount > 1 ? 's' : ''}"),
+                    ],
+                  ),
+                  trailing: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        "${total.toStringAsFixed(2)} FC",
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                          color: Colors.green,
+                        ),
+                      ),
+                      const Icon(Icons.chevron_right),
+                    ],
+                  ),
                   onTap: () {
                     Navigator.push(
                       context,

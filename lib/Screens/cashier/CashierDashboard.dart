@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../../common/auth_utils.dart';
 import 'HistoriqueJourPage.dart';
 import 'NewTicketPage.dart';
 import 'TicketsOuvertsPage.dart';
+import 'ActivityDepositPage.dart';
+import 'InvoicesPage.dart';
 
 class CashierDashboard extends StatelessWidget {
   final String activityName;
@@ -24,6 +27,13 @@ class CashierDashboard extends StatelessWidget {
           style: const TextStyle(fontWeight: FontWeight.bold,color: Colors.white),
         ),
         centerTitle: true,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.logout, color: Colors.white),
+            onPressed: () => AuthUtils.logout(context),
+            tooltip: 'Déconnexion',
+          ),
+        ],
       ),
       body: Padding(
         padding: const EdgeInsets.all(16),
@@ -76,7 +86,31 @@ class CashierDashboard extends StatelessWidget {
                     );
                   }),
                   _DashButton(title: "Stock Activité", onTap: () {}),
-                  _DashButton(title: "Factures", onTap: () {}),
+                  _DashButton(
+                    title: "Factures",
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => InvoicesPage(cashierId: cashierId),
+                        ),
+                      );
+                    },
+                  ),
+                  _DashButton(
+                    title: "Déposer en Caisse Principale",
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => ActivityDepositPage(
+                            activityName: activityName,
+                            cashierId: cashierId,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
                 ],
               ),
             ),
@@ -124,3 +158,4 @@ class _DashButton extends StatelessWidget {
     );
   }
 }
+
