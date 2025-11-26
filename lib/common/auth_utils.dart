@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../Screens/loginPage.dart';
+import 'error_messages.dart';
 
 class AuthUtils {
   static Future<void> logout(BuildContext context) async {
@@ -24,7 +25,10 @@ class AuthUtils {
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erreur lors de la déconnexion: $e')),
+          SnackBar(
+            content: Text(ErrorMessages.deconnexionEchouee),
+            backgroundColor: Colors.red,
+          ),
         );
       }
     }

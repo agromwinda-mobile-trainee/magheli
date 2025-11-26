@@ -2,15 +2,27 @@ import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_native_splash/flutter_native_splash.dart';
 
-import 'Screens/loginPage.dart';
+import 'Screens/SplashScreen.dart';
 
 Future<void> main() async {
-  WidgetsFlutterBinding.ensureInitialized();
+  final widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
+  
+  // Préserver le splash screen natif pendant l'initialisation
+  FlutterNativeSplash.preserve(widgetsBinding: widgetsBinding);
+  
   await Firebase.initializeApp();
   await SharedPreferences.getInstance();
   await initializeDateFormatting('fr_FR', null);
+  
   runApp(const MaghaliApp());
+  
+  // Retirer le splash screen natif après un court délai
+  // Le SplashScreen Flutter prendra le relais
+  Future.delayed(const Duration(milliseconds: 100), () {
+    FlutterNativeSplash.remove();
+  });
 }
 
 class MaghaliApp extends StatelessWidget {
@@ -29,7 +41,7 @@ class MaghaliApp extends StatelessWidget {
           border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
         ),
       ),
-      home: const LoginPage(),
+      home: const SplashScreen(),
     );
   }
 }

@@ -63,14 +63,20 @@ class _ProductManagementPageState extends State<ProductManagementPage> {
             color: Colors.grey[100],
             child: Row(
               children: [
-                const Text(
-                  'Filtrer par activité: ',
-                  style: TextStyle(fontWeight: FontWeight.bold),
+                Flexible(
+                  child: Text(
+                    'Filtrer par activité: ',
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
+                  ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
+                  flex: 2,
                   child: DropdownButtonFormField<String>(
                     value: selectedActivityFilter,
+                    isExpanded: true,
                     decoration: InputDecoration(
                       filled: true,
                       fillColor: Colors.white,
@@ -81,12 +87,19 @@ class _ProductManagementPageState extends State<ProductManagementPage> {
                     items: [
                       const DropdownMenuItem<String>(
                         value: null,
-                        child: Text('Toutes les activités'),
+                        child: Text(
+                          'Toutes les activités',
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
                       ...activities.map((activity) {
                         return DropdownMenuItem<String>(
                           value: activity['name'] as String,
-                          child: Text(activity['name'] as String),
+                          child: Text(
+                            activity['name'] as String,
+                            overflow: TextOverflow.ellipsis,
+                            maxLines: 1,
+                          ),
                         );
                       }),
                     ],
@@ -146,16 +159,29 @@ class _ProductManagementPageState extends State<ProductManagementPage> {
                         title: Text(
                           name,
                           style: const TextStyle(fontWeight: FontWeight.bold),
+                          overflow: TextOverflow.ellipsis,
+                          maxLines: 1,
                         ),
                         subtitle: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
                           children: [
-                            Text('Activité: $activity'),
-                            Text('Prix: ${price.toStringAsFixed(2)} FC'),
+                            Text(
+                              'Activité: $activity',
+                              overflow: TextOverflow.ellipsis,
+                              maxLines: 1,
+                            ),
+                            Text(
+                              'Prix: ${price.toStringAsFixed(2)} FC',
+                              overflow: TextOverflow.ellipsis,
+                              maxLines: 1,
+                            ),
                             if (createdAt != null)
                               Text(
                                 'Créé le: ${_formatDate(createdAt)}',
                                 style: const TextStyle(fontSize: 12, color: Colors.grey),
+                                overflow: TextOverflow.ellipsis,
+                                maxLines: 1,
                               ),
                           ],
                         ),
@@ -186,4 +212,5 @@ class _ProductManagementPageState extends State<ProductManagementPage> {
     return '${date.day}/${date.month}/${date.year}';
   }
 }
+
 

@@ -49,6 +49,17 @@ class _AdminMonthlyReportPageState extends State<AdminMonthlyReportPage> {
       59,
     );
 
+    // ✅ OPTIMISATION : Charger toutes les activités en une seule fois
+    final activitiesQuery = await FirebaseFirestore.instance
+        .collection('activities')
+        .get();
+    
+    final Map<String, String> activityNames = {};
+    for (var doc in activitiesQuery.docs) {
+      final data = doc.data();
+      activityNames[doc.id] = data['activityName'] ?? 'Inconnue';
+    }
+
     // Factures du mois
     final invoicesQuery = await FirebaseFirestore.instance
         .collection('invoices')
@@ -77,14 +88,10 @@ class _AdminMonthlyReportPageState extends State<AdminMonthlyReportPage> {
         weeklyRevenue[weekKey] = (weeklyRevenue[weekKey] ?? 0) + paid;
       }
 
-      // Par activité
+      // ✅ OPTIMISATION : Utiliser le Map au lieu d'une requête Firestore
       final activityId = data['activityId'] ?? '';
-      if (activityId.isNotEmpty) {
-        final activityDoc = await FirebaseFirestore.instance
-            .collection('activities')
-            .doc(activityId)
-            .get();
-        final activityName = activityDoc.data()?['activityName'] ?? 'Inconnue';
+      if (activityId.isNotEmpty && activityNames.containsKey(activityId)) {
+        final activityName = activityNames[activityId]!;
         revenueByActivity[activityName] = (revenueByActivity[activityName] ?? 0) + paid;
       }
     }
@@ -350,4 +357,5 @@ class _AdminMonthlyReportPageState extends State<AdminMonthlyReportPage> {
     );
   }
 }
+
 

@@ -10,20 +10,72 @@ class ActivityStockEntryPage extends StatefulWidget {
 }
 
 class _ActivityStockEntryPageState extends State<ActivityStockEntryPage> {
-  final productNameController = TextEditingController();
   final quantityController = TextEditingController();
   final unitController = TextEditingController();
+  String? selectedProductName;
+  List<Map<String, dynamic>> products = [];
+  String? activityId;
   bool loading = false;
+  bool loadingProducts = true;
   bool isNewProduct = true;
 
   @override
   void initState() {
     super.initState();
     unitController.text = 'unité'; // Valeur par défaut
+    _loadActivityId();
+    _loadProducts();
+  }
+
+  Future<void> _loadActivityId() async {
+    try {
+      final query = await FirebaseFirestore.instance
+          .collection('activities')
+          .where('activityName', isEqualTo: widget.activityName)
+          .limit(1)
+          .get();
+
+      if (query.docs.isNotEmpty) {
+        setState(() {
+          activityId = query.docs.first.id;
+        });
+      }
+    } catch (e) {
+      // Erreur silencieuse, on continuera sans activityId
+    }
+  }
+
+  Future<void> _loadProducts() async {
+    try {
+      final query = await FirebaseFirestore.instance
+          .collection('products')
+          .where('activity', isEqualTo: widget.activityName)
+          .orderBy('name')
+          .get();
+
+      setState(() {
+        products = query.docs.map((doc) {
+          final data = doc.data();
+          return {
+            'name': data['name'] ?? 'Produit inconnu',
+          };
+        }).toList();
+        loadingProducts = false;
+      });
+    } catch (e) {
+      setState(() {
+        loadingProducts = false;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erreur lors du chargement des produits: $e')),
+        );
+      }
+    }
   }
 
   Future<void> _saveEntry() async {
-    if (productNameController.text.isEmpty ||
+    if (selectedProductName == null ||
         quantityController.text.isEmpty ||
         unitController.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -43,8 +95,7 @@ class _ActivityStockEntryPageState extends State<ActivityStockEntryPage> {
     setState(() => loading = true);
 
     try {
-
-      final productName = productNameController.text.trim();
+      final productName = selectedProductName!;
       final unit = unitController.text.trim();
 
       // Vérifier si le produit existe déjà dans le stock de l'activité
@@ -66,23 +117,37 @@ class _ActivityStockEntryPageState extends State<ActivityStockEntryPage> {
           final currentQty = (snapshot.data()?['quantity'] ?? 0) as int;
           final newQty = currentQty + quantity;
 
-          transaction.update(productRef, {
+          final updateData = <String, dynamic>{
             'quantity': newQty,
             'updatedAt': FieldValue.serverTimestamp(),
-          });
+          };
+          
+          // Ajouter activityId si manquant (pour compatibilité avec les règles)
+          if (activityId != null) {
+            updateData['activityId'] = activityId;
+          }
+          
+          transaction.update(productRef, updateData);
         });
 
         isNewProduct = false;
       } else {
         // Nouveau produit : créer le document
-        await FirebaseFirestore.instance.collection('stock').add({
+        final stockData = <String, dynamic>{
           'name': productName,
           'activity': widget.activityName,
           'quantity': quantity,
           'unit': unit,
           'createdAt': FieldValue.serverTimestamp(),
           'updatedAt': FieldValue.serverTimestamp(),
-        });
+        };
+        
+        // Ajouter activityId si disponible (pour compatibilité avec les règles)
+        if (activityId != null) {
+          stockData['activityId'] = activityId;
+        }
+        
+        await FirebaseFirestore.instance.collection('stock').add(stockData);
 
         isNewProduct = true;
       }
@@ -98,7 +163,9 @@ class _ActivityStockEntryPageState extends State<ActivityStockEntryPage> {
       );
 
       // Réinitialiser les champs
-      productNameController.clear();
+      setState(() {
+        selectedProductName = null;
+      });
       quantityController.clear();
       unitController.clear();
       unitController.text = 'unité';
@@ -149,14 +216,58 @@ class _ActivityStockEntryPageState extends State<ActivityStockEntryPage> {
               ),
             ),
             const SizedBox(height: 24),
-            TextField(
-              controller: productNameController,
-              decoration: InputDecoration(
-                labelText: 'Nom du produit *',
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                prefixIcon: const Icon(Icons.inventory_2),
+            if (loadingProducts)
+              const Center(child: CircularProgressIndicator())
+            else if (products.isEmpty)
+              Card(
+                color: Colors.orange.shade50,
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    children: [
+                      const Icon(Icons.warning_amber, color: Colors.orange, size: 48),
+                      const SizedBox(height: 8),
+                      const Text(
+                        'Aucun produit enregistré pour cette activité',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Veuillez d\'abord créer des produits pour "${widget.activityName}" dans la section "Gérer Produits"',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: Colors.grey[700]),
+                      ),
+                    ],
+                  ),
+                ),
+              )
+            else
+              DropdownButtonFormField<String>(
+                value: selectedProductName,
+                decoration: InputDecoration(
+                  labelText: 'Produit *',
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  prefixIcon: const Icon(Icons.inventory_2),
+                ),
+                items: products.map((product) {
+                  return DropdownMenuItem<String>(
+                    value: product['name'] as String,
+                    child: Text(product['name'] as String),
+                  );
+                }).toList(),
+                onChanged: (value) {
+                  setState(() {
+                    selectedProductName = value;
+                  });
+                },
+                validator: (value) {
+                  if (value == null) {
+                    return 'Veuillez sélectionner un produit';
+                  }
+                  return null;
+                },
               ),
-            ),
             const SizedBox(height: 16),
             Row(
               children: [
@@ -214,7 +325,6 @@ class _ActivityStockEntryPageState extends State<ActivityStockEntryPage> {
 
   @override
   void dispose() {
-    productNameController.dispose();
     quantityController.dispose();
     unitController.dispose();
     super.dispose();

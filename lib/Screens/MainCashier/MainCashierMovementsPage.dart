@@ -5,8 +5,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:intl/intl.dart';
 
 class MainCashierMovementsPage extends StatefulWidget {
-  final bool? isDeposit;
-  const MainCashierMovementsPage({super.key, this.isDeposit});
+  final bool? isDeposit; // Pour créer un mouvement (true = dépôt, false = sortie)
+  final String? viewFilter; // Pour filtrer l'affichage ('deposits', 'withdrawals', null = tout)
+  const MainCashierMovementsPage({super.key, this.isDeposit, this.viewFilter});
 
   @override
   State<MainCashierMovementsPage> createState() => _MainCashierMovementsPageState();
@@ -46,14 +47,26 @@ class _MainCashierMovementsPageState extends State<MainCashierMovementsPage> {
       final type = isDeposit ? 'deposit' : 'withdrawal';
 
       // Enregistrer le mouvement
-      await FirebaseFirestore.instance.collection('main_cash_movements').add({
-        'amount': amount,
-        'type': type,
-        'reason': reasonController.text.trim(),
-        'cashierId': cashierId,
-        'cashierName': cashierName,
-        'date': FieldValue.serverTimestamp(),
-      });
+      // Les dépôts vont dans main_cash_deposits, les sorties dans main_cash_movements
+      if (isDeposit) {
+        await FirebaseFirestore.instance.collection('main_cash_deposits').add({
+          'amount': amount,
+          'type': 'deposit',
+          'reason': reasonController.text.trim(),
+          'cashierId': cashierId,
+          'cashierName': cashierName,
+          'date': FieldValue.serverTimestamp(),
+        });
+      } else {
+        await FirebaseFirestore.instance.collection('main_cash_movements').add({
+          'amount': amount,
+          'type': 'withdrawal',
+          'reason': reasonController.text.trim(),
+          'cashierId': cashierId,
+          'cashierName': cashierName,
+          'date': FieldValue.serverTimestamp(),
+        });
+      }
 
       // Mettre à jour le solde
       await _updateMainCashBalance(amount, type);
@@ -161,89 +174,180 @@ class _MainCashierMovementsPageState extends State<MainCashierMovementsPage> {
     }
 
     // Sinon, on affiche la liste des mouvements
+    String appBarTitle = "Mouvements Caisse Principale";
+    if (widget.viewFilter == 'deposits') {
+      appBarTitle = "Dépôts Caisse Principale";
+    } else if (widget.viewFilter == 'withdrawals') {
+      appBarTitle = "Sorties Caisse Principale";
+    }
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Mouvements Caisse Principale", style: TextStyle(color: Colors.white)),
+        title: Text(appBarTitle, style: const TextStyle(color: Colors.white)),
         backgroundColor: Colors.black,
       ),
-      body: StreamBuilder<QuerySnapshot>(
-        stream: FirebaseFirestore.instance
-            .collection('main_cash_movements')
-            .orderBy('date', descending: true)
-            .limit(100)
-            .snapshots(),
-        builder: (context, snapshot) {
-          if (!snapshot.hasData) {
-            return const Center(child: CircularProgressIndicator());
-          }
-
-          if (snapshot.data!.docs.isEmpty) {
-            return const Center(
-              child: Text('Aucun mouvement enregistré'),
-            );
-          }
-
-          return ListView.builder(
-            padding: const EdgeInsets.all(16),
-            itemCount: snapshot.data!.docs.length,
-            itemBuilder: (context, index) {
-              final doc = snapshot.data!.docs[index];
-              final data = doc.data() as Map<String, dynamic>;
-              final amount = (data['amount'] ?? 0).toDouble();
-              final type = data['type'] ?? 'withdrawal';
-              final reason = data['reason'] ?? '';
-              final cashierName = data['cashierName'] ?? 'Inconnu';
-              final date = (data['date'] as Timestamp?)?.toDate() ?? DateTime.now();
-
-              final isDeposit = type == 'deposit';
-
-              return Card(
-                margin: const EdgeInsets.only(bottom: 12),
-                child: ListTile(
-                  leading: CircleAvatar(
-                    backgroundColor: isDeposit ? Colors.green : Colors.red,
-                    child: Icon(
-                      isDeposit ? Icons.add : Icons.remove,
-                      color: Colors.white,
-                    ),
-                  ),
-                  title: Text(
-                    isDeposit ? 'Dépôt' : 'Sortie',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: isDeposit ? Colors.green : Colors.red,
-                    ),
-                  ),
-                  subtitle: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Raison: $reason'),
-                      Text('Par: $cashierName'),
-                      Text('Date: ${DateFormat('dd/MM/yyyy HH:mm').format(date)}'),
-                    ],
-                  ),
-                  trailing: Text(
-                    '${isDeposit ? '+' : '-'}${amount.toStringAsFixed(2)} FC',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: isDeposit ? Colors.green : Colors.red,
-                    ),
-                  ),
-                ),
-              );
-            },
-          );
-        },
-      ),
+      body: _MovementsList(viewFilter: widget.viewFilter),
     );
   }
+}
+
+class _MovementsList extends StatefulWidget {
+  final String? viewFilter;
+  const _MovementsList({this.viewFilter});
 
   @override
-  void dispose() {
-    amountController.dispose();
-    reasonController.dispose();
-    super.dispose();
+  State<_MovementsList> createState() => _MovementsListState();
+}
+
+class _MovementsListState extends State<_MovementsList> {
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('main_cash_movements')
+          .orderBy('date', descending: true)
+          .limit(100)
+          .snapshots(),
+      builder: (context, movementsSnapshot) {
+        return StreamBuilder<QuerySnapshot>(
+          stream: FirebaseFirestore.instance
+              .collection('main_cash_deposits')
+              .orderBy('date', descending: true)
+              .limit(100)
+              .snapshots(),
+          builder: (context, depositsSnapshot) {
+            // Combiner les deux listes
+            final movements = movementsSnapshot.hasData
+                ? movementsSnapshot.data!.docs.map((doc) {
+                    final data = doc.data() as Map<String, dynamic>;
+                    return {
+                      'amount': (data['amount'] ?? 0).toDouble(),
+                      'type': data['type'] ?? 'withdrawal',
+                      'reason': data['reason'] ?? '',
+                      'cashierName': data['cashierName'] ?? 'Inconnu',
+                      'date': (data['date'] as Timestamp?)?.toDate() ?? DateTime.now(),
+                      'isFromDeposits': false,
+                    };
+                  }).toList()
+                : <Map<String, dynamic>>[];
+
+            final deposits = depositsSnapshot.hasData
+                ? depositsSnapshot.data!.docs.map((doc) {
+                    final data = doc.data() as Map<String, dynamic>;
+                    return {
+                      'amount': (data['amount'] ?? 0).toDouble(),
+                      'type': 'deposit',
+                      'activityName': data['activityName'] ?? '',
+                      'cashierName': data['cashierName'] ?? 'Inconnu',
+                      'date': (data['date'] as Timestamp?)?.toDate() ?? DateTime.now(),
+                      'isFromDeposits': true,
+                    };
+                  }).toList()
+                : <Map<String, dynamic>>[];
+
+            // Combiner et trier par date décroissante
+            List<Map<String, dynamic>> combined = [...movements, ...deposits];
+            
+            // Filtrer selon viewFilter
+            if (widget.viewFilter == 'deposits') {
+              combined = combined.where((m) => m['type'] == 'deposit').toList();
+            } else if (widget.viewFilter == 'withdrawals') {
+              combined = combined.where((m) => m['type'] == 'withdrawal').toList();
+            }
+            
+            combined.sort((a, b) {
+              final dateA = a['date'] as DateTime;
+              final dateB = b['date'] as DateTime;
+              return dateB.compareTo(dateA);
+            });
+
+            if (combined.isEmpty) {
+              return const Center(
+                child: Text('Aucun mouvement enregistré'),
+              );
+            }
+
+            return ListView.builder(
+              padding: const EdgeInsets.all(16),
+              itemCount: combined.length,
+              itemBuilder: (context, index) {
+                final movement = combined[index];
+                final amount = movement['amount'] as double;
+                final type = movement['type'] as String;
+                final reason = movement['reason'] as String? ?? '';
+                final activityName = movement['activityName'] as String?;
+                final cashierName = movement['cashierName'] as String? ?? 'Inconnu';
+                final date = movement['date'] as DateTime;
+                final isFromDeposits = movement['isFromDeposits'] as bool? ?? false;
+
+                final isDeposit = type == 'deposit';
+
+                return Card(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  elevation: 2,
+                  child: ListTile(
+                    leading: CircleAvatar(
+                      backgroundColor: isDeposit ? Colors.green : Colors.red,
+                      child: Icon(
+                        isDeposit ? Icons.add : Icons.remove,
+                        color: Colors.white,
+                      ),
+                    ),
+                    title: Text(
+                      isDeposit ? 'Dépôt' : 'Sortie',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: isDeposit ? Colors.green : Colors.red,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
+                    ),
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (isFromDeposits && activityName != null && activityName.isNotEmpty)
+                          Text(
+                            'Activité: $activityName',
+                            style: const TextStyle(fontWeight: FontWeight.w500),
+                            overflow: TextOverflow.ellipsis,
+                            maxLines: 1,
+                          ),
+                        if (reason.isNotEmpty)
+                          Text(
+                            '${isFromDeposits ? 'Dépôt de' : 'Raison'}: $reason',
+                            overflow: TextOverflow.ellipsis,
+                            maxLines: 1,
+                          ),
+                        Text(
+                          'Par: $cashierName',
+                          overflow: TextOverflow.ellipsis,
+                          maxLines: 1,
+                        ),
+                        Text(
+                          'Date: ${DateFormat('dd/MM/yyyy HH:mm').format(date)}',
+                          overflow: TextOverflow.ellipsis,
+                          maxLines: 1,
+                        ),
+                      ],
+                    ),
+                    trailing: Text(
+                      '${isDeposit ? '+' : '-'}${amount.toStringAsFixed(2)} FC',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: isDeposit ? Colors.green : Colors.red,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                );
+              },
+            );
+          },
+        );
+      },
+    );
   }
 }
 

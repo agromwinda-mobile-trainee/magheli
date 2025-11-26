@@ -6,6 +6,8 @@ import 'NewTicketPage.dart';
 import 'TicketsOuvertsPage.dart';
 import 'ActivityDepositPage.dart';
 import 'InvoicesPage.dart';
+import 'ActivityStockPage.dart';
+import 'ClientsPage.dart';
 
 class CashierDashboard extends StatelessWidget {
   final String activityName;
@@ -85,7 +87,17 @@ class CashierDashboard extends StatelessWidget {
                       ),
                     );
                   }),
-                  _DashButton(title: "Stock Activité", onTap: () {}),
+                  _DashButton(
+                    title: "Stock Activité",
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const ActivityStockPage(),
+                        ),
+                      );
+                    },
+                  ),
                   _DashButton(
                     title: "Factures",
                     onTap: () {
@@ -93,6 +105,17 @@ class CashierDashboard extends StatelessWidget {
                         context,
                         MaterialPageRoute(
                           builder: (_) => InvoicesPage(cashierId: cashierId),
+                        ),
+                      );
+                    },
+                  ),
+                  _DashButton(
+                    title: "Clients",
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const ClientsPage(),
                         ),
                       );
                     },

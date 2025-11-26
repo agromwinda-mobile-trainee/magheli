@@ -1,0 +1,80 @@
+// === Règles pour le stock (VERSION TEST SIMPLIFIÉE) ===
+// Utilisez cette version pour tester et identifier le problème
+// IMPORTANT: Les fonctions doivent être définies AVANT les règles match
+
+// ============================
+//      FONCTIONS HELPER DE BASE
+// ============================
+
+function isAuth() {
+  return request.auth != null;
+}
+
+function isAdmin() {
+  return isAuth() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+}
+
+function isManager() {
+  return isAuth() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'manager';
+}
+
+function isCashier() {
+  return isAuth() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'cashier';
+}
+
+// ============================
+//      FONCTIONS SPÉCIFIQUES AU STOCK
+// ============================
+
+// Version simplifiée pour test - sans vérification d'activité
+function isSameActivity() {
+  let user = get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+  let currentStock = resource.data;
+  
+  // Version simplifiée : retourne true si les deux existent et correspondent
+  return ("activityName" in user) 
+         && user.activityName != null
+         && ("activity" in currentStock)
+         && currentStock.activity != null
+         && user.activityName == currentStock.activity;
+}
+
+function isStockDecreaseOnly() {
+  return request.resource.data.keys().hasOnly(["quantity", "updatedAt"])
+         && request.resource.data.quantity < resource.data.quantity;
+}
+
+function notGoingNegative() {
+  return request.resource.data.quantity >= 0;
+}
+
+// ============================
+//      RÈGLES MATCH
+// ============================
+
+match /stock/{productId} {
+
+  allow read: if request.auth != null;
+
+  // stock doit être créé par l'admin depuis la console
+  allow create: if isAuth() && (isAdmin() || isManager());
+
+  // VERSION TEST 1 : Simplifiée au maximum
+  // Décommentez cette ligne et commentez les autres pour tester
+  // allow update: if isAuth() && isCashier();
+
+  // VERSION TEST 2 : Avec vérification de diminution
+  // allow update: if isAuth() && isCashier() && isStockDecreaseOnly() && notGoingNegative();
+
+  // VERSION FINALE : Avec toutes les vérifications
+  allow update: if (isManager() || isCashier())
+                && isStockDecreaseOnly()
+                && notGoingNegative()
+                && (isManager() || isSameActivity());
+
+  // 🔥 Empêcher suppression :
+  allow delete: if false;
+}
+
+
+

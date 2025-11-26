@@ -194,11 +194,15 @@ class _MainStockExitPageState extends State<MainStockExitPage> {
                   children: [
                     const Icon(Icons.info_outline, color: Colors.blue),
                     const SizedBox(width: 8),
-                    Text(
-                      'Stock disponible: $availableQuantity ${products.firstWhere((p) => p['id'] == selectedProductId)['unit']}${availableQuantity > 1 ? 's' : ''}',
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: Colors.blue,
+                    Expanded(
+                      child: Text(
+                        'Stock disponible: $availableQuantity ${products.firstWhere((p) => p['id'] == selectedProductId)['unit']}${availableQuantity > 1 ? 's' : ''}',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: Colors.blue,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                        maxLines: 2,
                       ),
                     ),
                   ],
@@ -257,4 +261,5 @@ class _MainStockExitPageState extends State<MainStockExitPage> {
     super.dispose();
   }
 }
+
 

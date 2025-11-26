@@ -98,3 +98,5 @@ class MainStockHistoryPage extends StatelessWidget {
   }
 }
 
+
+

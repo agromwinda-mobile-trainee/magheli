@@ -24,26 +24,41 @@ class _EditProductPageState extends State<EditProductPage> {
   void initState() {
     super.initState();
     isEditing = widget.productId != null;
-    _loadActivities();
+    _initializeData();
+  }
+
+  Future<void> _initializeData() async {
+    // Charger d'abord les activités
+    await _loadActivities();
+    
+    // Ensuite charger le produit si on est en mode édition
     if (isEditing) {
-      _loadProduct();
+      await _loadProduct();
     }
   }
 
   Future<void> _loadActivities() async {
-    final query = await FirebaseFirestore.instance
-        .collection('activities')
-        .get();
+    try {
+      final query = await FirebaseFirestore.instance
+          .collection('activities')
+          .get();
 
-    setState(() {
-      activities = query.docs.map((doc) {
-        final data = doc.data();
-        return {
-          'id': doc.id,
-          'name': data['activityName'] ?? 'Activité inconnue',
-        };
-      }).toList();
-    });
+      setState(() {
+        activities = query.docs.map((doc) {
+          final data = doc.data();
+          return {
+            'id': doc.id,
+            'name': data['activityName'] ?? 'Activité inconnue',
+          };
+        }).toList();
+      });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erreur lors du chargement des activités: $e')),
+        );
+      }
+    }
   }
 
   Future<void> _loadProduct() async {
@@ -57,28 +72,41 @@ class _EditProductPageState extends State<EditProductPage> {
           .doc(widget.productId!)
           .get();
 
-      if (doc.exists) {
+      if (doc.exists && mounted) {
         final data = doc.data()!;
         nameController.text = data['name'] ?? '';
         priceController.text = (data['price'] ?? 0).toString();
         
-        final activityName = data['activity'] ?? '';
-        final activity = activities.firstWhere(
-          (a) => a['name'] == activityName,
-          orElse: () => {'id': '', 'name': activityName},
-        );
+        final activityName = data['activity'] as String? ?? '';
         
-        setState(() {
-          selectedActivityId = activity['id'] as String?;
-          selectedActivityName = activityName;
-        });
+        // Trouver l'activité dans la liste chargée
+        if (activityName.isNotEmpty && activities.isNotEmpty) {
+          final activity = activities.firstWhere(
+            (a) => (a['name'] as String) == activityName,
+            orElse: () => {'id': '', 'name': activityName},
+          );
+          
+          setState(() {
+            selectedActivityId = activity['id'] as String?;
+            selectedActivityName = activityName;
+          });
+        } else {
+          // Si l'activité n'est pas trouvée, garder juste le nom
+          setState(() {
+            selectedActivityName = activityName;
+          });
+        }
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erreur lors du chargement: $e')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erreur lors du chargement: $e')),
+        );
+      }
     } finally {
-      setState(() => loading = false);
+      if (mounted) {
+        setState(() => loading = false);
+      }
     }
   }
 
@@ -197,11 +225,16 @@ class _EditProductPageState extends State<EditProductPage> {
                         );
                       }).toList(),
                       onChanged: (value) {
-                        setState(() {
-                          selectedActivityId = value;
-                          selectedActivityName = activities
-                              .firstWhere((a) => a['id'] == value)['name'] as String;
-                        });
+                        if (value != null) {
+                          setState(() {
+                            selectedActivityId = value;
+                            final activity = activities.firstWhere(
+                              (a) => a['id'] == value,
+                              orElse: () => {'id': value, 'name': 'Activité inconnue'},
+                            );
+                            selectedActivityName = activity['name'] as String;
+                          });
+                        }
                       },
                       validator: (value) {
                         if (value == null) {

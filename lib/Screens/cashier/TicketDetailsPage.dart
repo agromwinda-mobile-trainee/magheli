@@ -56,7 +56,13 @@ class TicketDetailsPage extends StatelessWidget {
                           children: [
                             const Icon(Icons.person, size: 20),
                             const SizedBox(width: 8),
-                            Text("Serveur : ${ticket['serverName']}"),
+                            Expanded(
+                              child: Text(
+                                "Serveur : ${ticket['serverName']}",
+                                overflow: TextOverflow.ellipsis,
+                                maxLines: 1,
+                              ),
+                            ),
                           ],
                         ),
 
@@ -66,7 +72,13 @@ class TicketDetailsPage extends StatelessWidget {
                           children: [
                             const Icon(Icons.shopping_bag, size: 20),
                             const SizedBox(width: 8),
-                            Text("Nombre de produits : ${products.length}"),
+                            Expanded(
+                              child: Text(
+                                "Nombre de produits : ${products.length}",
+                                overflow: TextOverflow.ellipsis,
+                                maxLines: 1,
+                              ),
+                            ),
                           ],
                         ),
                       ],
@@ -89,9 +101,20 @@ class TicketDetailsPage extends StatelessWidget {
                           final p = products[index];
                           final total = p["price"]* p["quantity"];
                           return ListTile(
-                            title: Text(p["name"]),
-                            subtitle: Text("Quantité : ${p["quantity"]}"),
-                            trailing: Text("$total FC"),
+                            title: Text(
+                              p["name"],
+                              overflow: TextOverflow.ellipsis,
+                              maxLines: 1,
+                            ),
+                            subtitle: Text(
+                              "Quantité : ${p["quantity"]}",
+                              overflow: TextOverflow.ellipsis,
+                              maxLines: 1,
+                            ),
+                            trailing: Text(
+                              "$total FC",
+                              overflow: TextOverflow.ellipsis,
+                            ),
                           );
                         },
                       ),

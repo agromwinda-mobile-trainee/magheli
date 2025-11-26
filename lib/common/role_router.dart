@@ -6,8 +6,8 @@ import '../Screens/MainCashier/MainCashierDashboard.dart';
 import '../Screens/StockManagerDashboard.dart';
 import '../Screens/manager/ManagerDashboard.dart';
 import '../Screens/admin/AdminDashboard.dart';
+import 'error_messages.dart';
 
-/// Routeur basé sur les rôles pour rediriger vers le bon dashboard
 class RoleRouter {
   static Future<void> routeAfterLogin(BuildContext context, String uid) async {
     final prefs = await SharedPreferences.getInstance();
@@ -15,7 +15,6 @@ class RoleRouter {
     final activityName = prefs.getString("activityName") ?? '';
     final profileCompleted = prefs.getBool("profileCompleted") ?? false;
 
-    // Si le profil n'est pas complété, rediriger vers ProfileCompletionPage
     if (!profileCompleted) {
       Navigator.pushReplacement(
         context,
@@ -24,7 +23,6 @@ class RoleRouter {
       return;
     }
 
-    // Router selon le rôle
     switch (role) {
       case 'cashier':
         Navigator.pushReplacement(
@@ -77,10 +75,10 @@ class RoleRouter {
       default:
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text("Rôle non reconnu. Veuillez contacter un administrateur."),
+            content: Text(ErrorMessages.roleNonReconnu),
+            backgroundColor: Colors.red,
           ),
         );
     }
   }
 }
-

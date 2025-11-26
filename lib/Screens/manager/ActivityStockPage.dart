@@ -66,14 +66,20 @@ class _ActivityStockPageState extends State<ActivityStockPage> {
             color: Colors.grey[100],
             child: Row(
               children: [
-                const Text(
-                  'Sélectionner une activité: ',
-                  style: TextStyle(fontWeight: FontWeight.bold),
+                Flexible(
+                  child: Text(
+                    'Sélectionner une activité: ',
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
+                  ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
+                  flex: 2,
                   child: DropdownButtonFormField<String>(
                     value: selectedActivityFilter,
+                    isExpanded: true,
                     decoration: InputDecoration(
                       filled: true,
                       fillColor: Colors.white,
@@ -84,12 +90,19 @@ class _ActivityStockPageState extends State<ActivityStockPage> {
                     items: [
                       const DropdownMenuItem<String>(
                         value: null,
-                        child: Text('Sélectionner une activité'),
+                        child: Text(
+                          'Sélectionner une activité',
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
                       ...activities.map((activity) {
                         return DropdownMenuItem<String>(
                           value: activity['name'] as String,
-                          child: Text(activity['name'] as String),
+                          child: Text(
+                            activity['name'] as String,
+                            overflow: TextOverflow.ellipsis,
+                            maxLines: 1,
+                          ),
                         );
                       }),
                     ],
@@ -175,8 +188,14 @@ class _ActivityStockPageState extends State<ActivityStockPage> {
                               title: Text(
                                 name,
                                 style: const TextStyle(fontWeight: FontWeight.bold),
+                                overflow: TextOverflow.ellipsis,
+                                maxLines: 1,
                               ),
-                              subtitle: Text('Unité: $unit'),
+                              subtitle: Text(
+                                'Unité: $unit',
+                                overflow: TextOverflow.ellipsis,
+                                maxLines: 1,
+                              ),
                               trailing: Container(
                                 padding: const EdgeInsets.symmetric(
                                   horizontal: 12,
@@ -200,6 +219,7 @@ class _ActivityStockPageState extends State<ActivityStockPage> {
                                             ? Colors.orange.shade800
                                             : Colors.red.shade800,
                                   ),
+                                  overflow: TextOverflow.ellipsis,
                                 ),
                               ),
                             ),

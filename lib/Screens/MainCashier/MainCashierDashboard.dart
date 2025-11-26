@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:intl/intl.dart';
 import '../../common/auth_utils.dart';
 import 'DepositPage.dart';
 import 'MainCashierMovementsPage.dart';
@@ -25,25 +27,29 @@ class MainCashierDashboard extends StatelessWidget {
           ),
         ],
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              "Caisse Principale",
-              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 20),
-            Expanded(
-              child: GridView.count(
-                crossAxisCount: 2,
-                crossAxisSpacing: 16,
-                mainAxisSpacing: 16,
+      body: StreamBuilder<DocumentSnapshot>(
+        stream: FirebaseFirestore.instance
+            .collection('main_cash')
+            .doc('balance')
+            .snapshots(),
+        builder: (context, balanceSnapshot) {
+          final balance = (balanceSnapshot.data?.data() as Map<String, dynamic>?)?['balance'] ?? 0.0;
+          final balanceDouble = (balance as num).toDouble();
+          final updatedAt = (balanceSnapshot.data?.data() as Map<String, dynamic>?)?['updatedAt'] as Timestamp?;
+
+          return SingleChildScrollView(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _DashButton(
-                    title: "Solde Caisse",
-                    icon: Icons.account_balance_wallet,
+                  const Text(
+                    "Caisse Principale",
+                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 20),
+                  // Card du solde
+                  InkWell(
                     onTap: () {
                       Navigator.push(
                         context,
@@ -52,48 +58,156 @@ class MainCashierDashboard extends StatelessWidget {
                         ),
                       );
                     },
-                  ),
-                  _DashButton(
-                    title: "Enregistrer Dépôt",
-                    icon: Icons.add_circle,
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const DepositPage(),
+                    borderRadius: BorderRadius.circular(20),
+                    child: Container(
+                      padding: const EdgeInsets.all(24),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [
+                            Colors.green.shade400,
+                            Colors.green.shade600,
+                          ],
                         ),
-                      );
-                    },
+                        borderRadius: BorderRadius.circular(20),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.green.withOpacity(0.3),
+                            blurRadius: 15,
+                            offset: const Offset(0, 8),
+                          ),
+                        ],
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const Text(
+                                'Solde Actuel',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w500,
+                                  color: Colors.white70,
+                                ),
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.history, color: Colors.white),
+                                onPressed: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => const MainCashierMovementsPage(),
+                                    ),
+                                  );
+                                },
+                                tooltip: 'Voir l\'historique',
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          Text(
+                            '${balanceDouble.toStringAsFixed(2)} FC',
+                            style: const TextStyle(
+                              fontSize: 42,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                              letterSpacing: 1,
+                            ),
+                          ),
+                          if (updatedAt != null) ...[
+                            const SizedBox(height: 16),
+                            Row(
+                              children: [
+                                const Icon(
+                                  Icons.access_time,
+                                  color: Colors.white70,
+                                  size: 14,
+                                ),
+                                const SizedBox(width: 6),
+                                Expanded(
+                                  child: Text(
+                                    'Mis à jour: ${DateFormat('dd/MM/yyyy HH:mm').format(updatedAt.toDate())}',
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.white70,
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
+                                    maxLines: 1,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
                   ),
-                  _DashButton(
-                    title: "Enregistrer Sortie",
-                    icon: Icons.remove_circle,
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const MainCashierMovementsPage(isDeposit: false),
-                        ),
-                      );
-                    },
-                  ),
-                  _DashButton(
-                    title: "Mouvements",
-                    icon: Icons.history,
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const MainCashierMovementsPage(),
-                        ),
-                      );
-                    },
+                  const SizedBox(height: 24),
+                  GridView.count(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    crossAxisCount: 2,
+                    crossAxisSpacing: 16,
+                    mainAxisSpacing: 16,
+                    children: [
+                      _DashButton(
+                        title: "Enregistrer Dépôt",
+                        icon: Icons.add_circle,
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const DepositPage(),
+                            ),
+                          );
+                        },
+                      ),
+                      _DashButton(
+                        title: "Enregistrer Sortie",
+                        icon: Icons.remove_circle,
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const MainCashierMovementsPage(isDeposit: false),
+                            ),
+                          );
+                        },
+                      ),
+                      _DashButton(
+                        title: "Détails Solde",
+                        icon: Icons.account_balance_wallet,
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const MainCashierBalancePage(),
+                            ),
+                          );
+                        },
+                      ),
+                      _DashButton(
+                        title: "Mouvements",
+                        icon: Icons.history,
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const MainCashierMovementsPage(),
+                            ),
+                          );
+                        },
+                      ),
+                    ],
                   ),
                 ],
               ),
             ),
-          ],
-        ),
+          );
+        },
       ),
     );
   }

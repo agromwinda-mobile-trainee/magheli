@@ -135,6 +135,8 @@ class _HistoriqueJourPageState extends State<HistoriqueJourPage> {
                       child: Text(
                         "${e.key} : ${e.value.toStringAsFixed(2)} FC",
                         style: TextStyle(fontSize: 16, color: Colors.white),
+                        overflow: TextOverflow.ellipsis,
+                        maxLines: 1,
                       ),
                     )),
                   ],
@@ -168,15 +170,26 @@ class _HistoriqueJourPageState extends State<HistoriqueJourPage> {
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
                         children: [
                           Text(
                             "Serveur : $serverName",
                             style: TextStyle(
                                 fontSize: 17, fontWeight: FontWeight.bold),
+                            overflow: TextOverflow.ellipsis,
+                            maxLines: 1,
                           ),
                           SizedBox(height: 8),
-                          Text("Montant Total : ${invoice['totalAmount']} FC"),
-                          Text("Montant Payé : ${invoice['amountPaid']} FC"),
+                          Text(
+                            "Montant Total : ${invoice['totalAmount']} FC",
+                            overflow: TextOverflow.ellipsis,
+                            maxLines: 1,
+                          ),
+                          Text(
+                            "Montant Payé : ${invoice['amountPaid']} FC",
+                            overflow: TextOverflow.ellipsis,
+                            maxLines: 1,
+                          ),
                           SizedBox(height: 6),
                           Text(
                             "Statut : ${invoice['paymentStatus']}",
@@ -188,9 +201,15 @@ class _HistoriqueJourPageState extends State<HistoriqueJourPage> {
                                   : Colors.red,
                               fontWeight: FontWeight.bold,
                             ),
+                            overflow: TextOverflow.ellipsis,
+                            maxLines: 1,
                           ),
                           SizedBox(height: 6),
-                          Text("Heure : ${DateFormat.Hm().format(createdAt)}"),
+                          Text(
+                            "Heure : ${DateFormat.Hm().format(createdAt)}",
+                            overflow: TextOverflow.ellipsis,
+                            maxLines: 1,
+                          ),
                         ],
                       ),
                     );

@@ -24,20 +24,19 @@ class _DepositPageState extends State<DepositPage> {
 
   Future<void> _loadActivities() async {
     final query = await FirebaseFirestore.instance
-        .collection('users')
-        .where('role', isEqualTo: 'cashier')
+        .collection('activities')
+        .orderBy('activityName')
         .get();
 
-    final Set<String> uniqueActivities = {};
-    for (var doc in query.docs) {
-      final activityName = doc.data()['activityName'];
-      if (activityName != null) {
-        uniqueActivities.add(activityName);
-      }
-    }
-
     setState(() {
-      activities = uniqueActivities.toList();
+      activities = query.docs
+          .map((doc) {
+            final data = doc.data();
+            return data['activityName'] as String?;
+          })
+          .where((name) => name != null && name.isNotEmpty)
+          .cast<String>()
+          .toList();
     });
   }
 
@@ -66,8 +65,8 @@ class _DepositPageState extends State<DepositPage> {
       final prefs = await SharedPreferences.getInstance();
       final cashierName = prefs.getString("fullName") ?? "Caissier Principale";
 
-      // Créer le dépôt
-      await FirebaseFirestore.instance.collection('deposits').add({
+      // Créer le dépôt dans la collection dédiée au main cashier
+      await FirebaseFirestore.instance.collection('main_cash_deposits').add({
         'activityName': selectedActivityName,
         'amount': amount,
         'date': FieldValue.serverTimestamp(),

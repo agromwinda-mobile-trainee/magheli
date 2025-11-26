@@ -44,34 +44,55 @@ class _ProfileCompletionPageState extends State<ProfileCompletionPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Compléter votre profil'), backgroundColor: Colors.black),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
+      body: SafeArea(
         child: Column(
           children: [
-            TextField(
-              controller: nameController,
-              decoration: const InputDecoration(labelText: 'Nom complet'),
-            ),
-            const SizedBox(height: 16),
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  children: [
+                    TextField(
+                      controller: nameController,
+                      decoration: const InputDecoration(labelText: 'Nom complet'),
+                    ),
+                    const SizedBox(height: 16),
 
-            TextField(
-              controller: phoneController,
-              decoration: const InputDecoration(labelText: 'Téléphone'),
-              keyboardType: TextInputType.phone,
-            ),
-            const SizedBox(height: 32),
+                    TextField(
+                      controller: phoneController,
+                      decoration: const InputDecoration(labelText: 'Téléphone'),
+                      keyboardType: TextInputType.phone,
+                    ),
+                    const SizedBox(height: 32),
 
-            ElevatedButton(
-              onPressed: loading ? null : _saveProfile,
-              style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.black,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12))),
-              child: loading
-                  ? const CircularProgressIndicator(color: Colors.white)
-                  : const Text("Enregistrer",
-                  style: TextStyle(color: Colors.white, fontSize: 18)),
+                    ElevatedButton(
+                      onPressed: loading ? null : _saveProfile,
+                      style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.black,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12))),
+                      child: loading
+                          ? const CircularProgressIndicator(color: Colors.white)
+                          : const Text("Enregistrer",
+                          style: TextStyle(color: Colors.white, fontSize: 18)),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            // Signature en bas
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Text(
+                '@bymaxedena',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Colors.grey[600],
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
             ),
           ],
         ),

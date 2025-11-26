@@ -4,6 +4,8 @@ import 'CreateUserPage.dart';
 import 'ProductManagementPage.dart';
 import 'ActivityStockPage.dart';
 import 'ActivityManagementPage.dart';
+import 'AllClientsPage.dart';
+import 'ServersManagementPage.dart';
 
 class ManagerDashboard extends StatelessWidget {
   const ManagerDashboard({super.key});
@@ -90,6 +92,32 @@ class ManagerDashboard extends StatelessWidget {
                         context,
                         MaterialPageRoute(
                           builder: (_) => const ActivityManagementPage(),
+                        ),
+                      );
+                    },
+                  ),
+                  _DashButton(
+                    title: "Clients",
+                    icon: Icons.people,
+                    color: Colors.indigo,
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const AllClientsPage(),
+                        ),
+                      );
+                    },
+                  ),
+                  _DashButton(
+                    title: "Serveurs",
+                    icon: Icons.support_agent,
+                    color: Colors.teal,
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const ServersManagementPage(),
                         ),
                       );
                     },

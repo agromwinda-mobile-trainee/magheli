@@ -1,7 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-
+import '../../common/error_messages.dart';
 import 'TicketsOuvertsPage.dart';
 
 class PaymentPage extends StatefulWidget {
@@ -26,11 +26,43 @@ class _PaymentPageState extends State<PaymentPage> {
   double total = 0;
   double amountPaid = 0;
   List<dynamic> products = [];
+  String? selectedClientId;
+  String? selectedClientName;
+  List<Map<String, dynamic>> clients = [];
+  bool loadingClients = true;
+  bool _isCreatingInvoice = false;
 
   @override
   void initState() {
     super.initState();
     loadTicket();
+    _loadClients();
+  }
+
+  Future<void> _loadClients() async {
+    try {
+      final query = await FirebaseFirestore.instance
+          .collection('clients')
+          .orderBy('fullName')
+          .get();
+
+      setState(() {
+        clients = query.docs.map((doc) {
+          final data = doc.data();
+          return {
+            'id': doc.id,
+            'fullName': (data['fullName'] ?? '') as String,
+            'phone': (data['phone'] ?? '') as String,
+          };
+        }).toList();
+        loadingClients = false;
+      });
+    } catch (e) {
+      setState(() {
+        loadingClients = false;
+      });
+      // Erreur silencieuse - les clients sont optionnels
+    }
   }
 
   double calculateTotal(List products) {
@@ -69,37 +101,111 @@ class _PaymentPageState extends State<PaymentPage> {
   }
 
   Future<void> createInvoice() async {
-    final balance = total - amountPaid;
-    String? activityName = await getActivityName();
+    if (_isCreatingInvoice) return;
 
-    await FirebaseFirestore.instance.collection("invoices").add({
-      "ticketId": widget.ticketId,
-      "cashierId": widget.cashierId,
-      "serverId": widget.serverId,
-      "activityId":await getActivityId(),
-      "totalAmount": total,
-      "amountPaid": amountPaid,
-      "balance": balance,
-      "paymentStatus": getStatus(),
-      "createdAt": FieldValue.serverTimestamp(),
+    setState(() {
+      _isCreatingInvoice = true;
     });
 
-    // Fermer le ticket
-    await FirebaseFirestore.instance
-        .collection("tickets")
-        .doc(widget.ticketId)
-        .update({"status" :getStatus(),"isOpen": false });
+    try {
+      final balance = total - amountPaid;
+      String? activityName = await getActivityName();
+      String? activityId = await getActivityId();
 
-    //Navigator.pop(context);
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(
-        builder: (_) => TicketsOuvertsPage(
-          activityName: activityName ?? "",
-          cashierId: widget.cashierId,
+      // Validation selon les règles Firestore
+      if (activityId == null || activityId.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(ErrorMessages.activiteNonTrouvee),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        return;
+      }
+
+      if (widget.serverId.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(ErrorMessages.serveurNonDefini),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        return;
+      }
+
+      // Vérifier que balance == totalAmount - amountPaid (règle Firestore)
+      final calculatedBalance = total - amountPaid;
+      if ((balance - calculatedBalance).abs() > 0.01) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(ErrorMessages.calculSoldeIncoherent),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        return;
+      }
+
+      final invoiceData = <String, dynamic>{
+        "ticketId": widget.ticketId,
+        "cashierId": widget.cashierId,
+        "serverId": widget.serverId, // string - requis par les règles
+        "activityId": activityId, // requis pour validation caissier
+        "totalAmount": total, // number - requis
+        "amountPaid": amountPaid, // number - requis
+        "balance": balance, // number - requis et doit être totalAmount - amountPaid
+        "paymentStatus": getStatus(), // doit être dans ["paid","partial","unpaid"]
+        "createdAt": FieldValue.serverTimestamp(), // timestamp - requis
+      };
+
+      // Ajouter les informations du client si sélectionné (optionnel, non validé par les règles)
+      if (selectedClientId != null && selectedClientName != null) {
+        invoiceData["clientId"] = selectedClientId;
+        invoiceData["clientName"] = selectedClientName;
+      }
+
+      await FirebaseFirestore.instance.collection("invoices").add(invoiceData);
+
+      // Fermer le ticket
+      await FirebaseFirestore.instance
+          .collection("tickets")
+          .doc(widget.ticketId)
+          .update({"status": getStatus(), "isOpen": false});
+
+      if (!mounted) return;
+
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => TicketsOuvertsPage(
+            activityName: activityName ?? "",
+            cashierId: widget.cashierId,
+          ),
         ),
-      ),
-    );
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text(ErrorMessages.paiementEchec),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isCreatingInvoice = false;
+        });
+      } else {
+        _isCreatingInvoice = false;
+      }
+    }
   }
 
   @override
@@ -109,7 +215,7 @@ class _PaymentPageState extends State<PaymentPage> {
         title: const Text("Paiement"),
         backgroundColor: Colors.black,
       ),
-      body: Padding(
+      body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -118,6 +224,49 @@ class _PaymentPageState extends State<PaymentPage> {
               "Total : ${total.toStringAsFixed(2)} FC",
               style: const TextStyle(
                   fontSize: 22, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 20),
+            // Sélection du client (optionnel)
+            DropdownButtonFormField<String>(
+              value: selectedClientId,
+              decoration: InputDecoration(
+                labelText: "Client (optionnel)",
+                hintText: "Sélectionner un client",
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                prefixIcon: const Icon(Icons.person),
+              ),
+              items: [
+                const DropdownMenuItem<String>(
+                  value: null,
+                  child: Text("Aucun client"),
+                ),
+                ...clients.map((client) {
+                  final displayName = client['phone'] != null && client['phone'].toString().isNotEmpty
+                      ? "${client['fullName']} (${client['phone']})"
+                      : client['fullName'].toString();
+                  return DropdownMenuItem<String>(
+                    value: client['id'] as String,
+                    child: Text(
+                      displayName,
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
+                    ),
+                  );
+                }),
+              ],
+              onChanged: (value) {
+                setState(() {
+                  selectedClientId = value;
+                  if (value != null) {
+                    final client = clients.firstWhere((c) => c['id'] == value);
+                    selectedClientName = client['fullName'] as String;
+                  } else {
+                    selectedClientName = null;
+                  }
+                });
+              },
             ),
             const SizedBox(height: 20),
             TextField(
@@ -138,11 +287,11 @@ class _PaymentPageState extends State<PaymentPage> {
               "Status : ${getStatus()}",
               style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
             ),
-            const Spacer(),
+            const SizedBox(height: 30),
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-                onPressed: createInvoice,
+                onPressed: _isCreatingInvoice ? null : createInvoice,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.black,
                   padding: const EdgeInsets.symmetric(vertical: 16),
@@ -150,10 +299,22 @@ class _PaymentPageState extends State<PaymentPage> {
                     borderRadius: BorderRadius.circular(12),
                   ),
                 ),
-                child: const Text(
-                  "Créer facture",
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                ),
+                child: _isCreatingInvoice
+                    ? const SizedBox(
+                        height: 22,
+                        width: 22,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2.5,
+                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                        ),
+                      )
+                    : const Text(
+                        "Créer facture",
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
               ),
             )
           ],

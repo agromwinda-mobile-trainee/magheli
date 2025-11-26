@@ -1,6 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import '../../common/error_messages.dart';
+import '../loginPage.dart';
 
 class CreateUserPage extends StatefulWidget {
   const CreateUserPage({super.key});
@@ -78,6 +80,20 @@ class _CreateUserPageState extends State<CreateUserPage> {
 
     setState(() => loading = true);
 
+    // Sauvegarder l'email du manager actuel avant de créer l'utilisateur
+    final currentManagerEmail = FirebaseAuth.instance.currentUser?.email;
+    
+    if (currentManagerEmail == null) {
+      setState(() => loading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(ErrorMessages.connexionRequise),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
     try {
       // Créer l'utilisateur avec Firebase Auth
       final UserCredential userCredential = await FirebaseAuth.instance
@@ -89,6 +105,9 @@ class _CreateUserPageState extends State<CreateUserPage> {
       final uid = userCredential.user!.uid;
 
       // Créer le document utilisateur dans Firestore
+      // À ce moment, le manager est toujours connecté (car createUserWithEmailAndPassword
+      // connecte automatiquement le nouvel utilisateur, mais les règles Firebase vérifient
+      // le rôle du manager dans le document users, pas la session actuelle)
       final userData = <String, dynamic>{
         'email': emailController.text.trim(),
         'fullName': fullNameController.text.trim(),
@@ -104,6 +123,9 @@ class _CreateUserPageState extends State<CreateUserPage> {
         userData['activityName'] = selectedActivityName;
       }
 
+      // IMPORTANT: Créer le document Firestore AVANT de déconnecter
+      // Les règles Firebase vérifient que l'utilisateur actuel (le manager) 
+      // a le rôle manager ou admin dans son document users
       await FirebaseFirestore.instance
           .collection('users')
           .doc(uid)
@@ -112,46 +134,55 @@ class _CreateUserPageState extends State<CreateUserPage> {
       // Déconnecter l'utilisateur créé (il devra se connecter avec son mot de passe)
       await FirebaseAuth.instance.signOut();
 
-      // Se reconnecter en tant que manager (si nécessaire)
-      // Note: Cette partie dépend de votre logique de session
+      // Se reconnecter en tant que manager
+      // Note: On ne peut pas se reconnecter automatiquement sans le mot de passe
+      // Le manager devra se reconnecter manuellement
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(ErrorMessages.utilisateurCree),
+            duration: const Duration(seconds: 3),
+            backgroundColor: Colors.green,
+          ),
+        );
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Utilisateur créé avec succès')),
-      );
+        // Attendre un peu avant de rediriger pour que le message soit visible
+        await Future.delayed(const Duration(seconds: 1));
 
-      // Réinitialiser le formulaire
-      _resetForm();
+        // Rediriger vers la page de login
+        if (mounted) {
+          Navigator.pushAndRemoveUntil(
+            context,
+            MaterialPageRoute(builder: (_) => const LoginPage()),
+            (route) => false,
+          );
+        }
+      }
     } on FirebaseAuthException catch (e) {
-      String errorMessage = 'Erreur lors de la création';
+      String errorMessage = ErrorMessages.utilisateurNonCree;
       if (e.code == 'weak-password') {
-        errorMessage = 'Le mot de passe est trop faible';
+        errorMessage = ErrorMessages.motDePasseFaible;
       } else if (e.code == 'email-already-in-use') {
-        errorMessage = 'Cet email est déjà utilisé';
+        errorMessage = ErrorMessages.emailDejaUtilise;
       } else if (e.code == 'invalid-email') {
-        errorMessage = 'Email invalide';
+        errorMessage = ErrorMessages.emailInvalide;
       }
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(errorMessage)),
+        SnackBar(
+          content: Text(errorMessage),
+          backgroundColor: Colors.red,
+        ),
       );
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erreur: $e')),
+        SnackBar(
+          content: Text(ErrorMessages.fromException(e)),
+          backgroundColor: Colors.red,
+        ),
       );
     } finally {
       setState(() => loading = false);
     }
-  }
-
-  void _resetForm() {
-    emailController.clear();
-    passwordController.clear();
-    fullNameController.clear();
-    phoneController.clear();
-    setState(() {
-      selectedRole = null;
-      selectedActivityId = null;
-      selectedActivityName = null;
-    });
   }
 
   @override

@@ -41,6 +41,17 @@ class _AdminDailyReportPageState extends State<AdminDailyReportPage> {
     final startOfDay = DateTime(selectedDate.year, selectedDate.month, selectedDate.day, 0, 0, 0);
     final endOfDay = DateTime(selectedDate.year, selectedDate.month, selectedDate.day, 23, 59, 59);
 
+    // ✅ OPTIMISATION : Charger toutes les activités en une seule fois
+    final activitiesQuery = await FirebaseFirestore.instance
+        .collection('activities')
+        .get();
+    
+    final Map<String, String> activityNames = {};
+    for (var doc in activitiesQuery.docs) {
+      final data = doc.data();
+      activityNames[doc.id] = data['activityName'] ?? 'Inconnue';
+    }
+
     // Factures du jour
     final invoicesQuery = await FirebaseFirestore.instance
         .collection('invoices')
@@ -60,14 +71,10 @@ class _AdminDailyReportPageState extends State<AdminDailyReportPage> {
       totalRevenue += amount;
       totalPaid += paid;
 
-      // Par activité
+      // ✅ OPTIMISATION : Utiliser le Map au lieu d'une requête Firestore
       final activityId = data['activityId'] ?? '';
-      if (activityId.isNotEmpty) {
-        final activityDoc = await FirebaseFirestore.instance
-            .collection('activities')
-            .doc(activityId)
-            .get();
-        final activityName = activityDoc.data()?['activityName'] ?? 'Inconnue';
+      if (activityId.isNotEmpty && activityNames.containsKey(activityId)) {
+        final activityName = activityNames[activityId]!;
         revenueByActivity[activityName] = (revenueByActivity[activityName] ?? 0) + paid;
       }
     }
@@ -296,4 +303,5 @@ class _AdminDailyReportPageState extends State<AdminDailyReportPage> {
     );
   }
 }
+
 

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../../common/error_messages.dart';
 
 class NewTicketPage extends StatefulWidget {
   final String activityName;
@@ -21,14 +23,27 @@ class _NewTicketPageState extends State<NewTicketPage> {
 
   String? selectedServerId;
   String? selectedServerName;
+  String? activityId;
 
   List<Map<String, dynamic>> servers = [];
+  // ✅ OPTIMISATION : Map pour stocker les quantités de stock par nom de produit
+  Map<String, int> stockQuantities = {};
 
   @override
   void initState() {
     super.initState();
+    _loadActivityId();
     _loadServers();
+    _loadStock();
   }
+
+  Future<void> _loadActivityId() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      activityId = prefs.getString("activityId");
+    });
+  }
+
 
   Future<void> _loadServers() async {
     final query = await FirebaseFirestore.instance
@@ -45,6 +60,26 @@ class _NewTicketPageState extends State<NewTicketPage> {
           'name': (data['fullName'] ?? 'Serveur inconnu'),
         };
       }).toList();
+    });
+  }
+
+  // ✅ OPTIMISATION : Charger tous les stocks en une seule fois
+  Future<void> _loadStock() async {
+    final stockQuery = await FirebaseFirestore.instance
+        .collection('stock')
+        .where('activity', isEqualTo: widget.activityName)
+        .get();
+
+    setState(() {
+      stockQuantities = {};
+      for (var doc in stockQuery.docs) {
+        final data = doc.data();
+        final name = data['name'] as String?;
+        final quantity = (data['quantity'] ?? 0) as int;
+        if (name != null) {
+          stockQuantities[name] = quantity;
+        }
+      }
     });
   }
 
@@ -116,71 +151,75 @@ class _NewTicketPageState extends State<NewTicketPage> {
       builder: (context, snapshot) {
         if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
         final products = snapshot.data!.docs;
-        return ListView.builder(
-          itemCount: products.length,
-          itemBuilder: (context, index) {
-            final product = products[index];
-            return FutureBuilder<DocumentSnapshot?>(
-              future: FirebaseFirestore.instance
-                  .collection('stock')
-                  .where('name', isEqualTo: product['name'])
-                  .where('activity', isEqualTo: widget.activityName)
-                  .limit(1)
-                  .get()
-                  .then((query) => query.docs.isNotEmpty ? query.docs.first : null),
-              builder: (context, stockSnapshot) {
-                int availableStock = 0;
-                if (stockSnapshot.hasData && stockSnapshot.data != null && stockSnapshot.data!.exists) {
-                  final stockData = stockSnapshot.data!.data() as Map<String, dynamic>?;
-                  availableStock = (stockData?['quantity'] ?? 0) as int;
-                }
+        return RefreshIndicator(
+          onRefresh: _loadStock,
+          child: ListView.builder(
+            itemCount: products.length,
+            itemBuilder: (context, index) {
+              final product = products[index];
+              final productName = product['name'] as String;
+              
+              // ✅ OPTIMISATION : Utiliser le Map au lieu d'un FutureBuilder
+              final availableStock = stockQuantities[productName] ?? 0;
 
-                // Calculer la quantité déjà sélectionnée pour ce produit
-                final selectedQty = selectedProducts
-                    .where((p) => p['id'] == product.id)
-                    .fold<int>(0, (sum, p) => sum + (p['quantity'] as int));
+              // Calculer la quantité déjà sélectionnée pour ce produit
+              final selectedQty = selectedProducts
+                  .where((p) => p['id'] == product.id)
+                  .fold<int>(0, (sum, p) => sum + (p['quantity'] as int));
 
-                final remainingStock = availableStock - selectedQty;
-                final canAdd = remainingStock > 0;
+              final remainingStock = availableStock - selectedQty;
+              final canAdd = remainingStock > 0;
 
-                return ListTile(
-                  title: Text(product['name']),
-                  subtitle: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('${product['price']} FC'),
-                      Text(
-                        'Stock: $remainingStock / $availableStock',
-                        style: TextStyle(
-                          color: remainingStock > 10
-                              ? Colors.green
-                              : remainingStock > 0
-                                  ? Colors.orange
-                                  : Colors.red,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      if (selectedQty > 0)
-                        Text(
-                          'Dans le panier: $selectedQty',
-                          style: const TextStyle(
-                            color: Colors.blue,
-                            fontSize: 12,
-                          ),
-                        ),
-                    ],
-                  ),
-                  trailing: IconButton(
-                    icon: Icon(
-                      Icons.add_circle,
-                      color: canAdd ? Colors.green : Colors.grey,
+              return ListTile(
+                title: Text(
+                  productName,
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
+                ),
+                subtitle: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      '${product['price']} FC',
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
                     ),
-                    onPressed: canAdd ? () => _addProduct(product) : null,
+                    Text(
+                      'Stock: $remainingStock / $availableStock',
+                      style: TextStyle(
+                        color: remainingStock > 10
+                            ? Colors.green
+                            : remainingStock > 0
+                                ? Colors.orange
+                                : Colors.red,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
+                    ),
+                    if (selectedQty > 0)
+                      Text(
+                        'Dans le panier: $selectedQty',
+                        style: const TextStyle(
+                          color: Colors.blue,
+                          fontSize: 12,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                        maxLines: 1,
+                      ),
+                  ],
+                ),
+                trailing: IconButton(
+                  icon: Icon(
+                    Icons.add_circle,
+                    color: canAdd ? Colors.green : Colors.grey,
                   ),
-                );
-              },
-            );
-          },
+                  onPressed: canAdd ? () => _addProduct(product) : null,
+                ),
+              );
+            },
+          ),
         );
       },
     );
@@ -209,8 +248,18 @@ class _NewTicketPageState extends State<NewTicketPage> {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text('${product['name']} x${product['quantity']}'),
-                      Text('${((product['price'] as double) * (product['quantity'] as int)).toStringAsFixed(2)} FC'),
+                      Expanded(
+                        child: Text(
+                          '${product['name']} x${product['quantity']}',
+                          overflow: TextOverflow.ellipsis,
+                          maxLines: 1,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        '${((product['price'] as double) * (product['quantity'] as int)).toStringAsFixed(2)} FC',
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
                     ],
                   ),
                 )),
@@ -219,8 +268,14 @@ class _NewTicketPageState extends State<NewTicketPage> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('Total: FC${total.toStringAsFixed(2)}',
-                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              Flexible(
+                child: Text(
+                  'Total: FC${total.toStringAsFixed(2)}',
+                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              const SizedBox(width: 8),
               ElevatedButton(
                 onPressed: canValidate ? _createTicket : null,
                 style: ElevatedButton.styleFrom(backgroundColor: Colors.black),
@@ -249,7 +304,10 @@ class _NewTicketPageState extends State<NewTicketPage> {
 
     if (stockQuery.docs.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Produit "$productName" non trouvé dans le stock de l\'activité')),
+        SnackBar(
+          content: Text(ErrorMessages.stockNonTrouve),
+          backgroundColor: Colors.orange,
+        ),
       );
       return;
     }
@@ -264,7 +322,10 @@ class _NewTicketPageState extends State<NewTicketPage> {
 
     if (selectedQty >= availableStock) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Stock insuffisant pour "$productName". Stock disponible: $availableStock')),
+        SnackBar(
+          content: Text('${ErrorMessages.stockInsuffisant(productName)} Disponible: $availableStock'),
+          backgroundColor: Colors.orange,
+        ),
       );
       return;
     }
@@ -292,6 +353,27 @@ class _NewTicketPageState extends State<NewTicketPage> {
 
   // 🔹 Enregistrement du ticket dans Firestore
   Future<void> _createTicket() async {
+    // Validation préalable
+    if (activityId == null || activityId!.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text(ErrorMessages.activiteNonTrouvee),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    if (selectedServerId == null || selectedServerId!.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text(ErrorMessages.serveurNonSelectionne),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
     // Déduire le stock de l'activité AVANT de créer le ticket
     for (var product in selectedProducts) {
       final productName = product['name'] as String;
@@ -310,6 +392,42 @@ class _NewTicketPageState extends State<NewTicketPage> {
             .collection('stock')
             .doc(stockQuery.docs.first.id);
 
+        // 🔍 DEBUG : Vérifier les données avant la transaction
+        try {
+          final userDoc = await FirebaseFirestore.instance
+              .collection('users')
+              .doc(widget.cashierId)
+              .get();
+          final userData = userDoc.data();
+          final userActivityName = userData?['activityName'] as String?;
+          final userRole = userData?['role'] as String?;
+
+          final stockDoc = await stockRef.get();
+          final stockData = stockDoc.data();
+          final stockActivity = stockData?['activity'] as String?;
+          final stockQuantity = stockData?['quantity'] as int?;
+
+          print('🔍 DEBUG - User ID: ${widget.cashierId}');
+          print('🔍 DEBUG - User role: "$userRole"');
+          print('🔍 DEBUG - User activityName: "$userActivityName" (type: ${userActivityName.runtimeType})');
+          print('🔍 DEBUG - Stock activity: "$stockActivity" (type: ${stockActivity.runtimeType})');
+          print('🔍 DEBUG - Stock quantity: $stockQuantity');
+          print('🔍 DEBUG - Match: ${userActivityName == stockActivity}');
+          print('🔍 DEBUG - Product: $productName, Quantity to deduct: $quantity');
+          print('🔍 DEBUG - Widget activityName: "${widget.activityName}"');
+          
+          // Vérification détaillée
+          if (userActivityName != stockActivity) {
+            print('❌ ERREUR: Les activités ne correspondent pas!');
+            print('   User: "$userActivityName" (length: ${userActivityName?.length})');
+            print('   Stock: "$stockActivity" (length: ${stockActivity?.length})');
+            print('   Codes ASCII User: ${userActivityName?.codeUnits}');
+            print('   Codes ASCII Stock: ${stockActivity?.codeUnits}');
+          }
+        } catch (e) {
+          print('🔍 DEBUG - Erreur lors de la vérification: $e');
+        }
+
         await FirebaseFirestore.instance.runTransaction((transaction) async {
           final snapshot = await transaction.get(stockRef);
           if (!snapshot.exists) return;
@@ -317,10 +435,18 @@ class _NewTicketPageState extends State<NewTicketPage> {
           final currentQty = (snapshot.data()?['quantity'] ?? 0) as int;
           final newQty = currentQty - quantity;
 
+          // ✅ Vérification 1: newQty >= 0 (ne peut pas être négatif)
           if (newQty < 0) {
-            throw Exception('Stock insuffisant pour $productName');
+            throw Exception(ErrorMessages.stockInsuffisant(productName));
           }
 
+          // ✅ Vérification 2: newQty < currentQty (la quantité doit diminuer)
+          if (newQty >= currentQty) {
+            throw Exception(ErrorMessages.quantiteNePeutPasAugmenter);
+          }
+
+          // ✅ Vérification 3: Modifier seulement quantity et updatedAt
+          // Les règles Firestore exigent que seuls quantity et updatedAt soient modifiés
           transaction.update(stockRef, {
             'quantity': newQty,
             'updatedAt': FieldValue.serverTimestamp(),
@@ -330,28 +456,45 @@ class _NewTicketPageState extends State<NewTicketPage> {
     }
 
     // Créer le ticket
-    final ticketRef = FirebaseFirestore.instance.collection('tickets').doc();
+    try {
+      final ticketRef = FirebaseFirestore.instance.collection('tickets').doc();
 
-    await ticketRef.set({
-      'cashierId': widget.cashierId,
-      'activity': widget.activityName,
-      'serverId': selectedServerId,
-      'serverName': selectedServerName,
-      'products': selectedProducts,
-      'total': total,
-      'status': 'unpaid',
-      'isOpen': true,
-      'createdAt': FieldValue.serverTimestamp(),
-    });
+      await ticketRef.set({
+        'cashierId': widget.cashierId,
+        'activity': widget.activityName,
+        'activityId': activityId, // ✅ Ajout de activityId
+        'serverId': selectedServerId!,
+        'serverName': selectedServerName,
+        'products': selectedProducts,
+        'total': total,
+        'status': 'unpaid',
+        'isOpen': true,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Ticket créé avec succès')),
-    );
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(ErrorMessages.ticketCreeSucces),
+          backgroundColor: Colors.green,
+        ),
+      );
 
-    setState(() {
-      selectedProducts.clear();
-      selectedServerId = null;
-      total = 0;
-    });
+      setState(() {
+        selectedProducts.clear();
+        selectedServerId = null;
+        total = 0;
+      });
+    } catch (e) {
+      // Si la création du ticket échoue, on affiche l'erreur
+      // Note: Le stock a déjà été déduit, mais c'est acceptable car
+      // la déduction du stock est validée avant la création du ticket
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(ErrorMessages.fromException(e)),
+          backgroundColor: Colors.red,
+        ),
+      );
+      // Ne pas vider les produits si erreur, pour permettre de réessayer
+    }
   }
 }

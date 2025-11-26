@@ -1,0 +1,88 @@
+// === Règles pour le stock (CORRIGÉES) ===
+// IMPORTANT: Les fonctions doivent être définies AVANT les règles match
+
+// ============================
+//      FONCTIONS HELPER DE BASE
+// ============================
+
+function isAuth() {
+  return request.auth != null;
+}
+
+function isAdmin() {
+  return isAuth() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+}
+
+function isManager() {
+  return isAuth() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'manager';
+}
+
+function isCashier() {
+  return isAuth() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'cashier';
+}
+
+// ============================
+//      FONCTIONS SPÉCIFIQUES AU STOCK
+// ============================
+
+// L'utilisateur ne peut toucher que le stock de sa propre activité
+// CORRIGÉ : Compare activityName (user) avec activity (stock)
+// Syntaxe Firestore : utilisation d'opérateurs logiques au lieu de if
+function isSameActivity() {
+  let user = get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+  let currentStock = resource.data;
+  
+  // Vérifier que l'utilisateur a un activityName ET que le stock a un activity
+  // Utilisation d'opérateurs logiques au lieu de if (syntaxe Firestore)
+  return ("activityName" in user) 
+         && user.activityName != null
+         && ("activity" in currentStock)
+         && currentStock.activity != null
+         && user.activityName == currentStock.activity;
+}
+
+// 🔥 Vérifie que la mise à jour DIMINUE la quantité
+// CORRIGÉ : Vérifie que seuls quantity et updatedAt sont modifiés (pas que le document ne contient que ces champs)
+function isStockDecreaseOnly() {
+  // Vérifier que la quantité diminue
+  let quantityDecreases = request.resource.data.quantity < resource.data.quantity;
+  
+  // Vérifier que les autres champs ne sont pas modifiés
+  // (name, activity, unit, etc. doivent rester identiques)
+  let nameUnchanged = (!("name" in request.resource.data) && !("name" in resource.data)) 
+                      || (request.resource.data.name == resource.data.name);
+  let activityUnchanged = (!("activity" in request.resource.data) && !("activity" in resource.data))
+                          || (request.resource.data.activity == resource.data.activity);
+  
+  // updatedAt peut être modifié (timestamp)
+  // quantity doit être modifié et diminuer (vérifié ci-dessus)
+  
+  return quantityDecreases && nameUnchanged && activityUnchanged;
+}
+
+// 🔥 Vérifie que la quantité finale ne devient pas négative
+function notGoingNegative() {
+  return request.resource.data.quantity >= 0;
+}
+
+// ============================
+//      RÈGLES MATCH
+// ============================
+
+match /stock/{productId} {
+
+  allow read: if request.auth != null;
+
+  // stock doit être créé par l'admin depuis la console
+  allow create: if isAuth() && (isAdmin() || isManager());
+
+  //  Seul un caissier ou manager peut déduire le stock
+  // ✅ CORRECTION : Ajout de parenthèses pour corriger la priorité des opérateurs
+  allow update: if (isManager() || isCashier())
+                && isStockDecreaseOnly()    // la quantité doit baisser
+                && notGoingNegative()       // impossible d'aller sous 0
+                && (isManager() || isSameActivity()); // Manager peut tout modifier, caissier seulement son activité
+
+  // 🔥 Empêcher suppression :
+  allow delete: if false;
+}

@@ -5,6 +5,7 @@ import 'AdminDailyReportPage.dart';
 import 'AdminWeeklyReportPage.dart';
 import 'AdminMonthlyReportPage.dart';
 import 'AdminUsersPage.dart';
+import '../manager/AllClientsPage.dart';
 
 class AdminDashboard extends StatelessWidget {
   const AdminDashboard({super.key});
@@ -104,6 +105,19 @@ class AdminDashboard extends StatelessWidget {
                         context,
                         MaterialPageRoute(
                           builder: (_) => const AdminMonthlyReportPage(),
+                        ),
+                      );
+                    },
+                  ),
+                  _DashButton(
+                    title: "Clients",
+                    icon: Icons.people,
+                    color: Colors.indigo,
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const AllClientsPage(),
                         ),
                       );
                     },

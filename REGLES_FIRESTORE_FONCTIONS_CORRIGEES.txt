@@ -1,0 +1,33 @@
+// ============================
+//      FONCTIONS SPÉCIFIQUES AU STOCK
+// ============================
+
+// L'utilisateur ne peut toucher que le stock de sa propre activité
+// CORRIGÉ : Compare activityName (user) avec activity (stock)
+// Syntaxe Firestore : utilisation d'opérateurs logiques au lieu de if
+function isSameActivity() {
+  let user = get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+  let currentStock = resource.data;
+  
+  // Vérifier que l'utilisateur a un activityName ET que le stock a un activity
+  // Utilisation d'opérateurs logiques au lieu de if
+  return ("activityName" in user) 
+         && user.activityName != null
+         && ("activity" in currentStock)
+         && currentStock.activity != null
+         && user.activityName == currentStock.activity;
+}
+
+// 🔥 Vérifie que la mise à jour DIMINUE la quantité
+function isStockDecreaseOnly() {
+  return request.resource.data.keys().hasOnly(["quantity", "updatedAt"])
+         && request.resource.data.quantity < resource.data.quantity;
+}
+
+// 🔥 Vérifie que la quantité finale ne devient pas négative
+function notGoingNegative() {
+  return request.resource.data.quantity >= 0;
+}
+
+
+

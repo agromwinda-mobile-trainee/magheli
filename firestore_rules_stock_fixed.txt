@@ -1,0 +1,45 @@
+// === Règles pour le stock (CORRIGÉES) ===
+
+match /stock/{productId} {
+
+  allow read: if request.auth != null;
+
+  // stock doit être créé par l'admin depuis la console
+  allow create: if isAuth() && (isAdmin() || isManager());
+
+  //  Seul un caissier peut déduire le stock
+  allow update: if isCashier()              // rôle caisse obligatoire
+                && isSameActivity()           // même activité (CORRIGÉ : compare par nom)
+                && isStockDecreaseOnly()     // la quantité doit baisser
+                && notGoingNegative();       // impossible d'aller sous 0
+
+  // 🔥 Empêcher suppression :
+  allow delete: if false;
+}
+
+// ============================
+//      FONCTIONS COMMUNES
+// ============================
+
+// L'utilisateur ne peut toucher que le stock de sa propre activité
+// CORRIGÉ : Compare activityName (user) avec activity (stock) au lieu de comparer les IDs
+function isSameActivity() {
+  let user = get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+  let currentStock = resource.data;
+  // Comparer le nom de l'activité au lieu de l'ID
+  return user.activityName == currentStock.activity;
+}
+
+// 🔥 Vérifie que la mise à jour DIMINUE la quantité
+function isStockDecreaseOnly() {
+  return request.resource.data.keys().hasOnly(["quantity", "updatedAt"])
+         && request.resource.data.quantity < resource.data.quantity;
+}
+
+// 🔥 Vérifie que la quantité finale ne devient pas négative
+function notGoingNegative() {
+  return request.resource.data.quantity >= 0;
+}
+
+
+

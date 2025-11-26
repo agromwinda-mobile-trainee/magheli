@@ -25,7 +25,7 @@ class TicketsOuvertsPage extends StatelessWidget {
         stream: FirebaseFirestore.instance
             .collection('tickets')
             .where('activity', isEqualTo: activityName)
-            .where('status', isEqualTo: 'unpaid')
+            .where('isOpen', isEqualTo: true)
             .snapshots(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
@@ -55,21 +55,34 @@ class TicketsOuvertsPage extends StatelessWidget {
               return Card(
                 margin: const EdgeInsets.all(12),
                 child: ListTile(
-                  title: Text("Ticket • $server"),
+                  title: Text(
+                    "Ticket • $server",
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
+                  ),
                   subtitle: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text("Total : ${total.toStringAsFixed(2)} FC",
+                      Text(
+                        "Total : ${total.toStringAsFixed(2)} FC",
                         style: const TextStyle(
                           fontWeight: FontWeight.bold,
                           fontSize: 16,
                         ),
+                        overflow: TextOverflow.ellipsis,
+                        maxLines: 1,
                       ),
-                      Text("$productsCount produit${productsCount > 1 ? 's' : ''}"),
+                      Text(
+                        "$productsCount produit${productsCount > 1 ? 's' : ''}",
+                        overflow: TextOverflow.ellipsis,
+                        maxLines: 1,
+                      ),
                     ],
                   ),
                   trailing: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
+                    mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
                         "${total.toStringAsFixed(2)} FC",
@@ -78,6 +91,7 @@ class TicketsOuvertsPage extends StatelessWidget {
                           fontSize: 16,
                           color: Colors.green,
                         ),
+                        overflow: TextOverflow.ellipsis,
                       ),
                       const Icon(Icons.chevron_right),
                     ],

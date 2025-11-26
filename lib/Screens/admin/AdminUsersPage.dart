@@ -240,14 +240,35 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
                         title: Text(
                           fullName,
                           style: const TextStyle(fontWeight: FontWeight.bold),
+                          overflow: TextOverflow.ellipsis,
+                          maxLines: 1,
                         ),
                         subtitle: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
                           children: [
-                            Text('Email: $email'),
-                            Text('Rôle: ${_getRoleDisplayName(role)}'),
-                            if (activityName != null) Text('Activité: $activityName'),
-                            if (phone.isNotEmpty) Text('Téléphone: $phone'),
+                            Text(
+                              'Email: $email',
+                              overflow: TextOverflow.ellipsis,
+                              maxLines: 1,
+                            ),
+                            Text(
+                              'Rôle: ${_getRoleDisplayName(role)}',
+                              overflow: TextOverflow.ellipsis,
+                              maxLines: 1,
+                            ),
+                            if (activityName != null)
+                              Text(
+                                'Activité: $activityName',
+                                overflow: TextOverflow.ellipsis,
+                                maxLines: 1,
+                              ),
+                            if (phone.isNotEmpty)
+                              Text(
+                                'Téléphone: $phone',
+                                overflow: TextOverflow.ellipsis,
+                                maxLines: 1,
+                              ),
                           ],
                         ),
                         trailing: Row(

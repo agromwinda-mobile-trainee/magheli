@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../../common/error_messages.dart';
 
 class EditTicketPage extends StatefulWidget {
   final String ticketId;
@@ -221,7 +222,7 @@ class _EditTicketPageState extends State<EditTicketPage> {
             final newQty = currentQty - diff; // diff est positif si on augmente la quantité dans le ticket
 
             if (newQty < 0) {
-              throw Exception('Stock insuffisant pour $productName');
+              throw Exception(ErrorMessages.stockInsuffisant(productName));
             }
 
             transaction.update(stockRef, {
@@ -240,12 +241,18 @@ class _EditTicketPageState extends State<EditTicketPage> {
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Ticket mis à jour avec succès')),
+        const SnackBar(
+          content: Text(ErrorMessages.ticketModifieSucces),
+          backgroundColor: Colors.green,
+        ),
       );
       Navigator.pop(context);
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erreur lors de la sauvegarde: $e')),
+        SnackBar(
+          content: Text(ErrorMessages.fromException(e)),
+          backgroundColor: Colors.red,
+        ),
       );
     } finally {
       setState(() => loading = false);
@@ -346,7 +353,10 @@ class _EditTicketPageState extends State<EditTicketPage> {
 
                       if (selectedQuantity > (availableStock + existingQty)) {
                         ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('Stock insuffisant. Disponible: ${availableStock + existingQty}')),
+                          SnackBar(
+                            content: Text('${ErrorMessages.stockInsuffisant(productName)} Disponible: ${availableStock + existingQty}'),
+                            backgroundColor: Colors.orange,
+                          ),
                         );
                         return;
                       }
@@ -433,14 +443,25 @@ class _EditTicketPageState extends State<EditTicketPage> {
                       final realAvailableStock = availableStock + originalQty - otherQty;
 
                       return ListTile(
-                        title: Text(productName),
+                        title: Text(
+                          productName,
+                          overflow: TextOverflow.ellipsis,
+                          maxLines: 1,
+                        ),
                         subtitle: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
                           children: [
-                            Text('Prix: ${price.toStringAsFixed(2)} FC • Qté: $quantity'),
+                            Text(
+                              'Prix: ${price.toStringAsFixed(2)} FC • Qté: $quantity',
+                              overflow: TextOverflow.ellipsis,
+                              maxLines: 1,
+                            ),
                             Text(
                               'Sous-total: ${subtotal.toStringAsFixed(2)} FC',
                               style: const TextStyle(fontWeight: FontWeight.bold),
+                              overflow: TextOverflow.ellipsis,
+                              maxLines: 1,
                             ),
                             Text(
                               'Stock disponible: $realAvailableStock',
@@ -452,6 +473,8 @@ class _EditTicketPageState extends State<EditTicketPage> {
                                         : Colors.red,
                                 fontSize: 12,
                               ),
+                              overflow: TextOverflow.ellipsis,
+                              maxLines: 1,
                             ),
                           ],
                         ),
