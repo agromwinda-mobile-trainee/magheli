@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import '../../common/auth_utils.dart';
-import 'DepositPage.dart';
-import 'MainCashierMovementsPage.dart';
+import 'MainCashierEntryPage.dart';
+import 'MainCashierHistoryPage.dart';
 import 'MainCashierBalancePage.dart';
 
 class MainCashierDashboard extends StatelessWidget {
@@ -33,9 +33,12 @@ class MainCashierDashboard extends StatelessWidget {
             .doc('balance')
             .snapshots(),
         builder: (context, balanceSnapshot) {
-          final balance = (balanceSnapshot.data?.data() as Map<String, dynamic>?)?['balance'] ?? 0.0;
-          final balanceDouble = (balance as num).toDouble();
-          final updatedAt = (balanceSnapshot.data?.data() as Map<String, dynamic>?)?['updatedAt'] as Timestamp?;
+          final data = balanceSnapshot.data?.data() as Map<String, dynamic>?;
+          final balanceUSD = (data?['balanceUSD'] ?? 0.0) as num;
+          final balanceFC = (data?['balanceFC'] ?? 0.0) as num;
+          final balanceUSDDouble = balanceUSD.toDouble();
+          final balanceFCDouble = balanceFC.toDouble();
+          final updatedAt = data?['updatedAt'] as Timestamp?;
 
           return SingleChildScrollView(
             child: Padding(
@@ -99,7 +102,7 @@ class MainCashierDashboard extends StatelessWidget {
                                   Navigator.push(
                                     context,
                                     MaterialPageRoute(
-                                      builder: (_) => const MainCashierMovementsPage(),
+                                      builder: (_) => const MainCashierHistoryPage(),
                                     ),
                                   );
                                 },
@@ -108,15 +111,38 @@ class MainCashierDashboard extends StatelessWidget {
                             ],
                           ),
                           const SizedBox(height: 12),
-                          Text(
-                            '${balanceDouble.toStringAsFixed(2)} FC',
-                            style: const TextStyle(
-                              fontSize: 42,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                              letterSpacing: 1,
+                          if (balanceUSDDouble > 0)
+                            Text(
+                              '\$${balanceUSDDouble.toStringAsFixed(2)}',
+                              style: const TextStyle(
+                                fontSize: 36,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                                letterSpacing: 1,
+                              ),
                             ),
-                          ),
+                          if (balanceFCDouble > 0) ...[
+                            if (balanceUSDDouble > 0) const SizedBox(height: 8),
+                            Text(
+                              '${balanceFCDouble.toStringAsFixed(2)} FC',
+                              style: const TextStyle(
+                                fontSize: 36,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                                letterSpacing: 1,
+                              ),
+                            ),
+                          ],
+                          if (balanceUSDDouble == 0 && balanceFCDouble == 0)
+                            Text(
+                              '0.00',
+                              style: const TextStyle(
+                                fontSize: 42,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                                letterSpacing: 1,
+                              ),
+                            ),
                           if (updatedAt != null) ...[
                             const SizedBox(height: 16),
                             Row(
@@ -154,13 +180,13 @@ class MainCashierDashboard extends StatelessWidget {
                     mainAxisSpacing: 16,
                     children: [
                       _DashButton(
-                        title: "Enregistrer Dépôt",
+                        title: "Enregistrer Entrée",
                         icon: Icons.add_circle,
                         onTap: () {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (_) => const DepositPage(),
+                              builder: (_) => const MainCashierEntryPage(isDeposit: true),
                             ),
                           );
                         },
@@ -172,7 +198,7 @@ class MainCashierDashboard extends StatelessWidget {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (_) => const MainCashierMovementsPage(isDeposit: false),
+                              builder: (_) => const MainCashierEntryPage(isDeposit: false),
                             ),
                           );
                         },
@@ -190,13 +216,13 @@ class MainCashierDashboard extends StatelessWidget {
                         },
                       ),
                       _DashButton(
-                        title: "Mouvements",
+                        title: "Historique",
                         icon: Icons.history,
                         onTap: () {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (_) => const MainCashierMovementsPage(),
+                              builder: (_) => const MainCashierHistoryPage(),
                             ),
                           );
                         },

@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'loginPage.dart';
+import '../common/role_router.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -13,13 +17,72 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   void initState() {
     super.initState();
-    // Attendre 2 secondes avant de naviguer vers la page de connexion
-    Timer(const Duration(seconds: 2), () {
+    _checkAuthState();
+  }
+
+  Future<void> _checkAuthState() async {
+    // Attendre un court délai pour l'animation du splash
+    await Future.delayed(const Duration(seconds: 2));
+
+    if (!mounted) return;
+
+    final user = FirebaseAuth.instance.currentUser;
+
+    // Si l'utilisateur est connecté, vérifier ses données
+    if (user != null) {
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        
+        // Vérifier si les données sont déjà en cache
+        final role = prefs.getString("role");
+
+        // Si on a les données en cache, rediriger directement
+        if (role != null && role.isNotEmpty) {
+          // Mettre à jour les données depuis Firestore (au cas où elles auraient changé)
+          final userDoc = await FirebaseFirestore.instance
+              .collection('users')
+              .doc(user.uid)
+              .get();
+
+          if (userDoc.exists) {
+            final userData = userDoc.data()!;
+            String? activityId = userData["activityId"] as String?;
+            String? activityName = userData["activityName"] as String?;
+            String? fullName = userData["fullName"] as String?;
+
+            // Mettre à jour SharedPreferences
+            if (activityId != null) {
+              await prefs.setString("activityId", activityId);
+            }
+            if (activityName != null) {
+              await prefs.setString("activityName", activityName);
+            }
+            if (fullName != null) {
+              await prefs.setString("fullName", fullName);
+            }
+            await prefs.setString("role", userData["role"] as String? ?? "");
+            await prefs.setBool("profileCompleted", userData['profileCompleted'] ?? false);
+
+            // Rediriger selon le rôle
+            if (mounted) {
+              await RoleRouter.routeAfterLogin(context, user.uid);
+              return;
+            }
+          }
+        }
+      } catch (e) {
+        // En cas d'erreur, rediriger vers login
+        print("Erreur lors de la vérification de la session: $e");
+      }
+    }
+
+    // Si pas connecté ou erreur, rediriger vers login
+    if (mounted) {
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (_) => const LoginPage()),
       );
-    });
+    }
   }
 
   @override

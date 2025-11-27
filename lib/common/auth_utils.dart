@@ -10,9 +10,13 @@ class AuthUtils {
       // Déconnecter de Firebase Auth
       await FirebaseAuth.instance.signOut();
 
-      // Nettoyer les SharedPreferences
+      // Nettoyer les SharedPreferences mais conserver l'email pour faciliter la reconnexion
       final prefs = await SharedPreferences.getInstance();
+      final lastEmail = prefs.getString("lastEmail"); // Sauvegarder l'email
       await prefs.clear();
+      if (lastEmail != null) {
+        await prefs.setString("lastEmail", lastEmail); // Restaurer l'email
+      }
 
       // Rediriger vers la page de login
       if (context.mounted) {

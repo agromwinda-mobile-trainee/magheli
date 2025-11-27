@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import '../../common/error_messages.dart';
 
 /// Page pour que le caissier d'une activité dépose en fin de soirée
+/// Avec support de double devise (USD + FC) et historique amélioré
 class ActivityDepositPage extends StatefulWidget {
   final String activityName;
   final String cashierId;
@@ -20,21 +21,31 @@ class ActivityDepositPage extends StatefulWidget {
 }
 
 class _ActivityDepositPageState extends State<ActivityDepositPage> {
-  final amountController = TextEditingController();
+  final amountUSDController = TextEditingController();
+  final amountFCController = TextEditingController();
   bool loading = false;
 
   Future<void> _saveDeposit() async {
-    if (amountController.text.isEmpty) {
+    // Au moins un montant doit être saisi
+    final amountUSD = double.tryParse(amountUSDController.text) ?? 0.0;
+    final amountFC = double.tryParse(amountFCController.text) ?? 0.0;
+
+    if (amountUSD <= 0 && amountFC <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Veuillez saisir le montant')),
+        const SnackBar(
+          content: Text('Veuillez saisir au moins un montant (USD ou FC)'),
+          backgroundColor: Colors.orange,
+        ),
       );
       return;
     }
 
-    final amount = double.tryParse(amountController.text);
-    if (amount == null || amount <= 0) {
+    if (amountUSD < 0 || amountFC < 0) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Montant invalide')),
+        const SnackBar(
+          content: Text(ErrorMessages.montantNegatif),
+          backgroundColor: Colors.orange,
+        ),
       );
       return;
     }
@@ -45,18 +56,19 @@ class _ActivityDepositPageState extends State<ActivityDepositPage> {
       final prefs = await SharedPreferences.getInstance();
       final cashierName = prefs.getString("fullName") ?? "Caissier";
 
-      // Créer le dépôt
+      // Créer le dépôt avec double devise
       await FirebaseFirestore.instance.collection('deposits').add({
         'activityName': widget.activityName,
-        'amount': amount,
+        'amountUSD': amountUSD,
+        'amountFC': amountFC,
         'date': FieldValue.serverTimestamp(),
         'cashierId': widget.cashierId,
         'cashierName': cashierName,
         'type': 'deposit',
       });
 
-      // Mettre à jour le solde de la caisse principale
-      //await _updateMainCashBalance(amount, 'deposit');
+      // Mettre à jour le solde de l'activité dans activity_balances
+     //await _updateActivityBalance(amountUSD, amountFC);
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -65,7 +77,9 @@ class _ActivityDepositPageState extends State<ActivityDepositPage> {
         ),
       );
 
-      Navigator.pop(context);
+      // Réinitialiser les champs
+      amountUSDController.clear();
+      amountFCController.clear();
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -78,36 +92,74 @@ class _ActivityDepositPageState extends State<ActivityDepositPage> {
     }
   }
 
-  // Future<void> _updateMainCashBalance(double amount, String type) async {
-  //   final balanceRef = FirebaseFirestore.instance
-  //       .collection('main_cash')
-  //       .doc('balance');
-  //
-  //   await FirebaseFirestore.instance.runTransaction((transaction) async {
-  //     final snapshot = await transaction.get(balanceRef);
-  //     double currentBalance = 0;
-  //
-  //     if (snapshot.exists) {
-  //       currentBalance = (snapshot.data()?['balance'] ?? 0).toDouble();
-  //     }
-  //
-  //     double newBalance = type == 'deposit'
-  //         ? currentBalance + amount
-  //         : currentBalance - amount;
-  //
-  //     if (!snapshot.exists) {
-  //       transaction.set(balanceRef, {
-  //         'balance': newBalance,
-  //         'updatedAt': FieldValue.serverTimestamp(),
-  //       });
-  //     } else {
-  //       transaction.update(balanceRef, {
-  //         'balance': newBalance,
-  //         'updatedAt': FieldValue.serverTimestamp(),
-  //       });
-  //     }
-  //   });
-  // }
+  /// Met à jour le solde de l'activité dans activity_balances
+  Future<void> _updateActivityBalance(double amountUSD, double amountFC) async {
+    final activityBalanceRef = FirebaseFirestore.instance
+        .collection('activity_balances')
+        .doc(widget.activityName);
+
+    await FirebaseFirestore.instance.runTransaction((transaction) async {
+      final snapshot = await transaction.get(activityBalanceRef);
+
+      double currentUSD = 0;
+      double currentFC = 0;
+
+      if (snapshot.exists) {
+        final data = snapshot.data()!;
+        currentUSD = (data['balanceUSD'] ?? 0).toDouble();
+        currentFC = (data['balanceFC'] ?? 0).toDouble();
+      }
+
+      double newUSD = currentUSD + amountUSD;
+      double newFC = currentFC + amountFC;
+
+      if (!snapshot.exists) {
+        transaction.set(activityBalanceRef, {
+          'activityName': widget.activityName,
+          'balanceUSD': newUSD,
+          'balanceFC': newFC,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      } else {
+        transaction.update(activityBalanceRef, {
+          'balanceUSD': newUSD,
+          'balanceFC': newFC,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      }
+    });
+
+    // Recalculer le solde principal
+    await _recalculateMainBalance();
+  }
+
+  /// Recalcule le solde principal en sommant tous les soldes d'activités
+  Future<void> _recalculateMainBalance() async {
+    final allBalances = await FirebaseFirestore.instance
+        .collection('activity_balances')
+        .get();
+
+    double totalUSD = 0;
+    double totalFC = 0;
+
+    for (var doc in allBalances.docs) {
+      final data = doc.data();
+      totalUSD += (data['balanceUSD'] ?? 0).toDouble();
+      totalFC += (data['balanceFC'] ?? 0).toDouble();
+    }
+
+    final mainBalanceRef = FirebaseFirestore.instance
+        .collection('main_cash')
+        .doc('balance');
+
+    await FirebaseFirestore.instance.runTransaction((transaction) async {
+      transaction.set(mainBalanceRef, {
+        'balanceUSD': totalUSD,
+        'balanceFC': totalFC,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -121,62 +173,78 @@ class _ActivityDepositPageState extends State<ActivityDepositPage> {
           // Section formulaire de dépôt
           Container(
             padding: const EdgeInsets.all(20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Card(
-                  color: Colors.blue.shade50,
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      children: [
-                        const Text(
-                          'Activité',
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: Colors.grey,
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Card(
+                    color: Colors.blue.shade50,
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        children: [
+                          const Text(
+                            'Activité',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Colors.grey,
+                            ),
                           ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          widget.activityName,
-                          style: const TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
+                          const SizedBox(height: 4),
+                          Text(
+                            widget.activityName,
+                            style: const TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
-                ),
-                const SizedBox(height: 24),
-                TextField(
-                  controller: amountController,
-                  keyboardType: TextInputType.number,
-                  decoration: InputDecoration(
-                    labelText: 'Montant à déposer (FC)',
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                    prefixIcon: const Icon(Icons.money),
-                  ),
-                ),
-                const SizedBox(height: 30),
-                ElevatedButton(
-                  onPressed: loading ? null : _saveDeposit,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.black,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+                  const SizedBox(height: 24),
+                  // Montant USD
+                  TextField(
+                    controller: amountUSDController,
+                    keyboardType: TextInputType.numberWithOptions(decimal: true),
+                    decoration: InputDecoration(
+                      labelText: 'Montant USD',
+                      hintText: '0.00',
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      prefixIcon: const Icon(Icons.attach_money),
                     ),
                   ),
-                  child: loading
-                      ? const CircularProgressIndicator(color: Colors.white)
-                      : const Text(
-                          'Enregistrer le dépôt',
-                          style: TextStyle(color: Colors.white, fontSize: 18),
-                        ),
-                ),
-              ],
+                  const SizedBox(height: 16),
+                  // Montant FC
+                  TextField(
+                    controller: amountFCController,
+                    keyboardType: TextInputType.numberWithOptions(decimal: true),
+                    decoration: InputDecoration(
+                      labelText: 'Montant FC',
+                      hintText: '0.00',
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      prefixIcon: const Icon(Icons.money),
+                    ),
+                  ),
+                  const SizedBox(height: 30),
+                  ElevatedButton(
+                    onPressed: loading ? null : _saveDeposit,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.black,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: loading
+                        ? const CircularProgressIndicator(color: Colors.white)
+                        : const Text(
+                            'Enregistrer le dépôt',
+                            style: TextStyle(color: Colors.white, fontSize: 18),
+                          ),
+                  ),
+                ],
+              ),
             ),
           ),
           // Divider
@@ -221,19 +289,41 @@ class _ActivityDepositPageState extends State<ActivityDepositPage> {
                       }
 
                       if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                        return const Center(
-                          child: Text(
-                            'Aucun dépôt enregistré',
-                            style: TextStyle(color: Colors.grey),
+                        return Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.history, size: 64, color: Colors.grey[400]),
+                              const SizedBox(height: 16),
+                              const Text(
+                                'Aucun dépôt enregistré',
+                                style: TextStyle(color: Colors.grey),
+                              ),
+                            ],
                           ),
                         );
                       }
 
                       final deposits = snapshot.data!.docs;
-                      double totalDeposits = 0;
+                      
+                      // Calculer les totaux
+                      double totalDepositsUSD = 0;
+                      double totalDepositsFC = 0;
+                      
                       for (var doc in deposits) {
-                        final data = doc.data() as Map<String, dynamic>;
-                        totalDeposits += (data['amount'] ?? 0).toDouble();
+                        final data = doc.data() as Map<String, dynamic>?;
+                        if (data != null) {
+                          // Support de l'ancien format (amount) et du nouveau (amountUSD/amountFC)
+                          if (data.containsKey('amountUSD')) {
+                            totalDepositsUSD += ((data['amountUSD'] ?? 0) as num).toDouble();
+                          }
+                          if (data.containsKey('amountFC')) {
+                            totalDepositsFC += ((data['amountFC'] ?? 0) as num).toDouble();
+                          } else if (data.containsKey('amount')) {
+                            // Ancien format : amount est en FC
+                            totalDepositsFC += ((data['amount'] ?? 0) as num).toDouble();
+                          }
+                        }
                       }
 
                       return Column(
@@ -247,24 +337,57 @@ class _ActivityDepositPageState extends State<ActivityDepositPage> {
                               borderRadius: BorderRadius.circular(12),
                               border: Border.all(color: Colors.green.shade200),
                             ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            child: Column(
                               children: [
                                 const Text(
-                                  'Total des dépôts:',
+                                  'Total des dépôts',
                                   style: TextStyle(
                                     fontSize: 16,
                                     fontWeight: FontWeight.bold,
                                   ),
                                 ),
-                                Text(
-                                  '${totalDeposits.toStringAsFixed(2)} FC',
-                                  style: TextStyle(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.green.shade700,
+                                const SizedBox(height: 8),
+                                if (totalDepositsUSD > 0)
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      const Text('USD:', style: TextStyle(fontSize: 14)),
+                                      Text(
+                                        '\$${totalDepositsUSD.toStringAsFixed(2)}',
+                                        style: TextStyle(
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.green.shade700,
+                                        ),
+                                      ),
+                                    ],
                                   ),
-                                ),
+                                if (totalDepositsFC > 0) ...[
+                                  if (totalDepositsUSD > 0) const SizedBox(height: 4),
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      const Text('FC:', style: TextStyle(fontSize: 14)),
+                                      Text(
+                                        '${totalDepositsFC.toStringAsFixed(2)} FC',
+                                        style: TextStyle(
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.green.shade700,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                                if (totalDepositsUSD == 0 && totalDepositsFC == 0)
+                                  Text(
+                                    '0.00',
+                                    style: TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.green.shade700,
+                                    ),
+                                  ),
                               ],
                             ),
                           ),
@@ -276,8 +399,18 @@ class _ActivityDepositPageState extends State<ActivityDepositPage> {
                               itemCount: deposits.length,
                               itemBuilder: (context, index) {
                                 final doc = deposits[index];
-                                final data = doc.data() as Map<String, dynamic>;
-                                final amount = (data['amount'] ?? 0).toDouble();
+                                final data = doc.data() as Map<String, dynamic>?;
+                                if (data == null) return const SizedBox.shrink();
+                                
+                                // Support de l'ancien format (amount) et du nouveau (amountUSD/amountFC)
+                                final amountUSD = data.containsKey('amountUSD')
+                                    ? ((data['amountUSD'] ?? 0) as num).toDouble()
+                                    : 0.0;
+                                final amountFC = data.containsKey('amountFC')
+                                    ? ((data['amountFC'] ?? 0) as num).toDouble()
+                                    : (data.containsKey('amount')
+                                        ? ((data['amount'] ?? 0) as num).toDouble()
+                                        : 0.0);
                                 final date = data['date'] as Timestamp?;
                                 final cashierName = data['cashierName'] ?? 'Caissier inconnu';
 
@@ -292,22 +425,53 @@ class _ActivityDepositPageState extends State<ActivityDepositPage> {
                                         color: Colors.green.shade700,
                                       ),
                                     ),
-                                    title: Text(
-                                      '${amount.toStringAsFixed(2)} FC',
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 16,
-                                      ),
+                                    title: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        if (amountUSD > 0)
+                                          Text(
+                                            '\$${amountUSD.toStringAsFixed(2)}',
+                                            style: TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 16,
+                                              color: Colors.blue.shade700,
+                                            ),
+                                          ),
+                                        if (amountFC > 0) ...[
+                                          if (amountUSD > 0) const SizedBox(height: 4),
+                                          Text(
+                                            '${amountFC.toStringAsFixed(2)} FC',
+                                            style: TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 16,
+                                              color: Colors.green.shade700,
+                                            ),
+                                          ),
+                                        ],
+                                        if (amountUSD == 0 && amountFC == 0)
+                                          Text(
+                                            '0.00',
+                                            style: TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 16,
+                                            ),
+                                          ),
+                                      ],
                                     ),
                                     subtitle: Column(
                                       crossAxisAlignment: CrossAxisAlignment.start,
+                                      mainAxisSize: MainAxisSize.min,
                                       children: [
                                         const SizedBox(height: 4),
-                                        Text('Caissier: $cashierName'),
+                                        Text(
+                                          'Caissier: $cashierName',
+                                          overflow: TextOverflow.ellipsis,
+                                          maxLines: 1,
+                                        ),
                                         if (date != null)
                                           Text(
-                                            DateFormat('dd/MM/yyyy à HH:mm')
-                                                .format(date.toDate()),
+                                            DateFormat('dd/MM/yyyy à HH:mm').format(date.toDate()),
                                             style: const TextStyle(
                                               fontSize: 12,
                                               color: Colors.grey,
@@ -339,8 +503,8 @@ class _ActivityDepositPageState extends State<ActivityDepositPage> {
 
   @override
   void dispose() {
-    amountController.dispose();
+    amountUSDController.dispose();
+    amountFCController.dispose();
     super.dispose();
   }
 }
-

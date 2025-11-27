@@ -1,0 +1,114 @@
+// === Règles Firestore pour la Caisse Principale ===
+// À ajouter à vos règles Firestore existantes dans Firebase Console
+
+// ============================
+//      FONCTIONS HELPER DE BASE
+// ============================
+
+function isAuth() {
+  return request.auth != null;
+}
+
+function isAdmin() {
+  return isAuth() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+}
+
+function isManager() {
+  return isAuth() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'manager';
+}
+
+function isCashier() {
+  return isAuth() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'cashier';
+}
+
+function isMainCashier() {
+  return isAuth() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'mainCashier';
+}
+
+// ============================
+//      RÈGLES POUR LA CAISSE PRINCIPALE
+// ============================
+
+// Collection: activity_balances
+// Stocke les soldes par activité (USD + FC)
+match /activity_balances/{activityName} {
+  
+  // Lecture : Tous les utilisateurs authentifiés peuvent lire
+  allow read: if isAuth();
+  
+  // Création : Seul le caissier principal peut créer
+  allow create: if isMainCashier();
+  
+  // Mise à jour : Seul le caissier principal peut mettre à jour
+  // Vérifications :
+  // - Les montants ne peuvent pas être négatifs
+  // - Seuls balanceUSD, balanceFC et updatedAt peuvent être modifiés
+  allow update: if isMainCashier()
+                && request.resource.data.balanceUSD >= 0
+                && request.resource.data.balanceFC >= 0
+                && request.resource.data.activityName == resource.data.activityName;
+  
+  // Suppression : Interdite
+  allow delete: if false;
+}
+
+// Collection: main_cash_movements
+// Enregistre tous les mouvements (entrées/sorties) de la caisse principale
+match /main_cash_movements/{movementId} {
+  
+  // Lecture : Tous les utilisateurs authentifiés peuvent lire
+  allow read: if isAuth();
+  
+  // Création : Seul le caissier principal peut créer
+  // Vérifications :
+  // - Au moins un montant (USD ou FC) doit être > 0
+  // - Les montants ne peuvent pas être négatifs
+  // - activityName doit être présent
+  allow create: if isMainCashier()
+                && (request.resource.data.amountUSD > 0 || request.resource.data.amountFC > 0)
+                && request.resource.data.amountUSD >= 0
+                && request.resource.data.amountFC >= 0
+                && request.resource.data.activityName != null
+                && request.resource.data.type in ['deposit', 'withdrawal']
+                && request.resource.data.reason != null;
+  
+  // Mise à jour : Interdite (les mouvements sont immuables)
+  allow update: if false;
+  
+  // Suppression : Interdite
+  allow delete: if false;
+}
+
+// Document: main_cash/balance
+// Stocke le solde principal (somme de tous les soldes d'activités)
+match /main_cash/balance {
+  
+  // Lecture : Tous les utilisateurs authentifiés peuvent lire
+  allow read: if isAuth();
+  
+  // Création : Seul le caissier principal peut créer
+  allow create: if isMainCashier();
+  
+  // Mise à jour : Seul le caissier principal peut mettre à jour
+  // Vérifications :
+  // - Les montants ne peuvent pas être négatifs
+  allow update: if isMainCashier()
+                && request.resource.data.balanceUSD >= 0
+                && request.resource.data.balanceFC >= 0;
+  
+  // Suppression : Interdite
+  allow delete: if false;
+}
+
+// ============================
+//      RÈGLES POUR LES ANCIENNES COLLECTIONS (COMPATIBILITÉ)
+// ============================
+
+// Collection: main_cash_deposits (ancienne structure, à migrer)
+match /main_cash_deposits/{depositId} {
+  allow read: if isAuth();
+  allow create: if isMainCashier();
+  allow update: if false;
+  allow delete: if false;
+}
+

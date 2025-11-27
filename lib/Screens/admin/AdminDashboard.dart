@@ -5,6 +5,7 @@ import 'AdminDailyReportPage.dart';
 import 'AdminWeeklyReportPage.dart';
 import 'AdminMonthlyReportPage.dart';
 import 'AdminUsersPage.dart';
+import 'AdminCashReportPage.dart';
 import '../manager/AllClientsPage.dart';
 
 class AdminDashboard extends StatelessWidget {
@@ -118,6 +119,19 @@ class AdminDashboard extends StatelessWidget {
                         context,
                         MaterialPageRoute(
                           builder: (_) => const AllClientsPage(),
+                        ),
+                      );
+                    },
+                  ),
+                  _DashButton(
+                    title: "Rapport Caisse",
+                    icon: Icons.account_balance_wallet,
+                    color: Colors.amber,
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const AdminCashReportPage(),
                         ),
                       );
                     },

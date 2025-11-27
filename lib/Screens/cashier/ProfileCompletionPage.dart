@@ -1,7 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
-import 'CashierDashboard.dart';
+import '../../common/role_router.dart';
 
 
 
@@ -109,15 +110,34 @@ class _ProfileCompletionPageState extends State<ProfileCompletionPage> {
 
     setState(() => loading = true);
 
-    await FirebaseFirestore.instance.collection('users').doc(widget.uid).update({
-      'fullName': nameController.text.trim(),
-      'phone': phoneController.text.trim(),
-      'profileCompleted': true,
-    });
+    try {
+      await FirebaseFirestore.instance.collection('users').doc(widget.uid).update({
+        'fullName': nameController.text.trim(),
+        'phone': phoneController.text.trim(),
+        'profileCompleted': true,
+      });
 
-    setState(() => loading = false);
+      // Mettre à jour SharedPreferences
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString("fullName", nameController.text.trim());
+      await prefs.setBool("profileCompleted", true);
 
-    Navigator.pushReplacement(
-        context, MaterialPageRoute(builder: (_) => CashierDashboard(activityName:activityName, cashierId: userId,)));
+      setState(() => loading = false);
+
+      // Rediriger selon le rôle en utilisant RoleRouter
+      if (mounted) {
+        await RoleRouter.routeAfterLogin(context, widget.uid);
+      }
+    } catch (e) {
+      setState(() => loading = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erreur lors de la sauvegarde: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 }

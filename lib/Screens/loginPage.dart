@@ -20,6 +20,22 @@ class _LoginPageState extends State<LoginPage> {
   bool loading = false;
 
   @override
+  void initState() {
+    super.initState();
+    _loadLastEmail();
+  }
+
+  Future<void> _loadLastEmail() async {
+    final prefs = await SharedPreferences.getInstance();
+    final lastEmail = prefs.getString("lastEmail");
+    if (lastEmail != null && lastEmail.isNotEmpty) {
+      setState(() {
+        emailController.text = lastEmail;
+      });
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: SafeArea(
@@ -156,6 +172,9 @@ class _LoginPageState extends State<LoginPage> {
         await prefs.setString("fullName", fullName);
       }
       await prefs.setString("role", userData["role"] as String? ?? "");
+
+      // Sauvegarder l'email pour pré-remplir le champ lors de la prochaine connexion
+      await prefs.setString("lastEmail", emailController.text.trim());
 
       print("Activity saved : $activityId - $activityName");
       print("FullName saved : $fullName");

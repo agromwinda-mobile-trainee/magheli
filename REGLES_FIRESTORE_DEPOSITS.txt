@@ -1,0 +1,43 @@
+// === Règles Firestore pour la collection "deposits" ===
+// Mise à jour pour supporter la double devise (USD + FC)
+
+// ============================
+//      FONCTIONS HELPER DE BASE
+// ============================
+
+function isAuth() {
+  return request.auth != null;
+}
+
+// ============================
+//      RÈGLES POUR DEPOSITS
+// ============================
+
+match /deposits/{depositId} {
+
+  // ➤ Créer un dépôt
+  // Support de l'ancien format (amount) et du nouveau (amountUSD/amountFC)
+  allow create: if isAuth()
+                && request.resource.data.activityName is string
+                && request.resource.data.cashierId == request.auth.uid
+                && request.resource.data.type == "deposit"
+                // Au moins un montant doit être présent (USD ou FC, ou l'ancien format amount)
+                && (
+                  (request.resource.data.amountUSD is number && request.resource.data.amountUSD >= 0)
+                  || (request.resource.data.amountFC is number && request.resource.data.amountFC >= 0)
+                  || (request.resource.data.amount is number && request.resource.data.amount >= 0)
+                )
+                // Si amountUSD est présent, il doit être >= 0
+                && (!("amountUSD" in request.resource.data) || request.resource.data.amountUSD >= 0)
+                // Si amountFC est présent, il doit être >= 0
+                && (!("amountFC" in request.resource.data) || request.resource.data.amountFC >= 0)
+                // Si amount (ancien format) est présent, il doit être >= 0
+                && (!("amount" in request.resource.data) || request.resource.data.amount >= 0);
+
+  // ➤ Lire les dépôts
+  allow read: if isAuth();
+
+  // ❌ Interdire modification et suppression
+  allow update, delete: if false;
+}
+

@@ -1,7 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'MainCashierMovementsPage.dart';
+import 'MainCashierHistoryPage.dart';
 
 class MainCashierBalancePage extends StatelessWidget {
   const MainCashierBalancePage({super.key});
@@ -18,247 +18,272 @@ class MainCashierBalancePage extends StatelessWidget {
             .collection('main_cash')
             .doc('balance')
             .snapshots(),
-        builder: (context, snapshot) {
-          if (!snapshot.hasData) {
-            return const Center(child: CircularProgressIndicator());
-          }
+        builder: (context, mainBalanceSnapshot) {
+          return StreamBuilder<QuerySnapshot>(
+            stream: FirebaseFirestore.instance
+                .collection('activity_balances')
+                .orderBy('activityName')
+                .snapshots(),
+            builder: (context, activitiesSnapshot) {
+              if (!mainBalanceSnapshot.hasData || !activitiesSnapshot.hasData) {
+                return const Center(child: CircularProgressIndicator());
+              }
 
-          final data = snapshot.data!.data() as Map<String, dynamic>?;
-          final balance = (data?['balance'] ?? 0).toDouble();
-          final updatedAt = data?['updatedAt'] as Timestamp?;
+              final mainData = mainBalanceSnapshot.data!.data() as Map<String, dynamic>?;
+              final mainBalanceUSD = (mainData?['balanceUSD'] ?? 0).toDouble();
+              final mainBalanceFC = (mainData?['balanceFC'] ?? 0).toDouble();
+              final updatedAt = mainData?['updatedAt'] as Timestamp?;
 
-          return SingleChildScrollView(
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                children: [
-                  const SizedBox(height: 20),
-                  // Card principale du solde
-                  Container(
-                    padding: const EdgeInsets.all(32),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [
-                          Colors.green.shade400,
-                          Colors.green.shade600,
-                        ],
-                      ),
-                      borderRadius: BorderRadius.circular(24),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.green.withOpacity(0.3),
-                          blurRadius: 20,
-                          offset: const Offset(0, 10),
-                        ),
-                      ],
-                    ),
-                    child: Column(
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(12),
-                              decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.2),
-                                shape: BoxShape.circle,
-                              ),
-                              child: const Icon(
-                                Icons.account_balance_wallet,
-                                color: Colors.white,
-                                size: 32,
-                              ),
+              final activities = activitiesSnapshot.data!.docs;
+
+              return SingleChildScrollView(
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const SizedBox(height: 20),
+                      // Card principale du solde
+                      Container(
+                        padding: const EdgeInsets.all(32),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [
+                              Colors.green.shade400,
+                              Colors.green.shade600,
+                            ],
+                          ),
+                          borderRadius: BorderRadius.circular(24),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.green.withOpacity(0.3),
+                              blurRadius: 20,
+                              offset: const Offset(0, 10),
                             ),
                           ],
                         ),
-                        const SizedBox(height: 20),
-                        const Text(
-                          'Solde Actuel',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w500,
-                            color: Colors.white70,
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        Text(
-                          '${balance.toStringAsFixed(2)} FC',
-                          style: const TextStyle(
-                            fontSize: 56,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                            letterSpacing: 1.2,
-                          ),
-                        ),
-                        if (updatedAt != null) ...[
-                          const SizedBox(height: 24),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 8,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.2),
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
+                        child: Column(
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                const Icon(
-                                  Icons.access_time,
-                                  color: Colors.white70,
-                                  size: 16,
-                                ),
-                                const SizedBox(width: 8),
-                                Text(
-                                  DateFormat('dd/MM/yyyy à HH:mm').format(updatedAt.toDate()),
-                                  style: const TextStyle(
-                                    fontSize: 14,
-                                    color: Colors.white70,
+                                Container(
+                                  padding: const EdgeInsets.all(12),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withOpacity(0.2),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Icon(
+                                    Icons.account_balance_wallet,
+                                    color: Colors.white,
+                                    size: 32,
                                   ),
                                 ),
                               ],
                             ),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 32),
-                  // Statistiques rapides
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _StatCard(
-                          icon: Icons.trending_up,
-                          label: 'Dépôts',
-                          value: 'Voir',
-                          color: Colors.blue,
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => const MainCashierMovementsPage(viewFilter: 'deposits'),
+                            const SizedBox(height: 20),
+                            const Text(
+                              'Solde Principal',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w500,
+                                color: Colors.white70,
                               ),
-                            );
-                          },
+                            ),
+                            const SizedBox(height: 12),
+                            if (mainBalanceUSD > 0)
+                              Text(
+                                '\$${mainBalanceUSD.toStringAsFixed(2)}',
+                                style: const TextStyle(
+                                  fontSize: 48,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                  letterSpacing: 1.2,
+                                ),
+                              ),
+                            if (mainBalanceFC > 0) ...[
+                              if (mainBalanceUSD > 0) const SizedBox(height: 8),
+                              Text(
+                                '${mainBalanceFC.toStringAsFixed(2)} FC',
+                                style: const TextStyle(
+                                  fontSize: 48,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                  letterSpacing: 1.2,
+                                ),
+                              ),
+                            ],
+                            if (mainBalanceUSD == 0 && mainBalanceFC == 0)
+                              Text(
+                                '0.00',
+                                style: const TextStyle(
+                                  fontSize: 56,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                  letterSpacing: 1.2,
+                                ),
+                              ),
+                            if (updatedAt != null) ...[
+                              const SizedBox(height: 24),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 8,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withOpacity(0.2),
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(
+                                      Icons.access_time,
+                                      color: Colors.white70,
+                                      size: 16,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      DateFormat('dd/MM/yyyy à HH:mm').format(updatedAt.toDate()),
+                                      style: const TextStyle(
+                                        fontSize: 14,
+                                        color: Colors.white70,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ],
                         ),
                       ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: _StatCard(
-                          icon: Icons.trending_down,
-                          label: 'Sorties',
-                          value: 'Voir',
-                          color: Colors.orange,
-                          onTap: () {
+                      const SizedBox(height: 32),
+                      // Titre des soldes par activité
+                      const Text(
+                        'Soldes par Activité',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      // Liste des soldes par activité
+                      if (activities.isEmpty)
+                        Card(
+                          child: Padding(
+                            padding: const EdgeInsets.all(24),
+                            child: Column(
+                              children: [
+                                Icon(Icons.info_outline, size: 48, color: Colors.grey[400]),
+                                const SizedBox(height: 16),
+                                Text(
+                                  'Aucun solde d\'activité enregistré',
+                                  style: TextStyle(color: Colors.grey[600]),
+                                ),
+                              ],
+                            ),
+                          ),
+                        )
+                      else
+                        ...activities.map((doc) {
+                          final data = doc.data() as Map<String, dynamic>;
+                          final activityName = data['activityName'] ?? 'Activité inconnue';
+                          final balanceUSD = (data['balanceUSD'] ?? 0).toDouble();
+                          final balanceFC = (data['balanceFC'] ?? 0).toDouble();
+                          final updatedAt = data['updatedAt'] as Timestamp?;
+
+                          return Card(
+                            margin: const EdgeInsets.only(bottom: 12),
+                            elevation: 2,
+                            child: ListTile(
+                              leading: CircleAvatar(
+                                backgroundColor: Colors.blue,
+                                child: const Icon(Icons.business, color: Colors.white),
+                              ),
+                              title: Text(
+                                activityName,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 16,
+                                ),
+                              ),
+                              subtitle: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  if (balanceUSD > 0)
+                                    Text(
+                                      'USD: \$${balanceUSD.toStringAsFixed(2)}',
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w500,
+                                        color: Colors.blue,
+                                      ),
+                                    ),
+                                  if (balanceFC > 0)
+                                    Text(
+                                      'FC: ${balanceFC.toStringAsFixed(2)}',
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w500,
+                                        color: Colors.green,
+                                      ),
+                                    ),
+                                  if (balanceUSD == 0 && balanceFC == 0)
+                                    const Text(
+                                      'Solde: 0.00',
+                                      style: TextStyle(color: Colors.grey),
+                                    ),
+                                  if (updatedAt != null)
+                                    Text(
+                                      'Mis à jour: ${DateFormat('dd/MM/yyyy HH:mm').format(updatedAt.toDate())}',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: Colors.grey[600],
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                      const SizedBox(height: 24),
+                      // Bouton historique
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          onPressed: () {
                             Navigator.push(
                               context,
                               MaterialPageRoute(
-                                builder: (_) => const MainCashierMovementsPage(viewFilter: 'withdrawals'),
+                                builder: (_) => const MainCashierHistoryPage(),
                               ),
                             );
                           },
+                          icon: const Icon(Icons.history, size: 24),
+                          label: const Text(
+                            'Voir l\'historique complet',
+                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                          ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.black,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 18),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            elevation: 4,
+                          ),
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 24),
-                  // Bouton historique
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      onPressed: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const MainCashierMovementsPage(),
-                          ),
-                        );
-                      },
-                      icon: const Icon(Icons.history, size: 24),
-                      label: const Text(
-                        'Voir l\'historique complet',
-                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                      ),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.black,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 18),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        elevation: 4,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
+                ),
+              );
+            },
           );
         },
       ),
     );
   }
 }
-
-class _StatCard extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final String value;
-  final Color color;
-  final VoidCallback onTap;
-
-  const _StatCard({
-    required this.icon,
-    required this.label,
-    required this.value,
-    required this.color,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
-      child: Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: color.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: color.withOpacity(0.3),
-            width: 1.5,
-          ),
-        ),
-        child: Column(
-          children: [
-            Icon(icon, color: color, size: 32),
-            const SizedBox(height: 12),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.grey[700],
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              value,
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: color,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
