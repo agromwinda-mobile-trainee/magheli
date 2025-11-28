@@ -59,7 +59,9 @@ class _EditInvoicePageState extends State<EditInvoicePage> {
       amountPaid = (invoiceData!['amountPaid'] ?? 0).toDouble();
       balance = totalAmount - amountPaid;
 
-      amountPaidController.text = amountPaid.toStringAsFixed(2);
+      // Par défaut, le caissier saisit UN MONTANT À AJOUTER au montant déjà payé,
+      // donc on laisse le champ vide (ou à 0) au lieu de pré-remplir avec amountPaid.
+      amountPaidController.text = '';
 
       setState(() => loading = false);
     } catch (e) {
@@ -82,9 +84,10 @@ class _EditInvoicePageState extends State<EditInvoicePage> {
   }
 
   Future<void> _saveInvoice() async {
-    final newAmountPaid = double.tryParse(amountPaidController.text) ?? 0;
+    // Montant supplémentaire saisi par le caissier (à ajouter à amountPaid existant)
+    final additionalPayment = double.tryParse(amountPaidController.text) ?? 0;
 
-    if (newAmountPaid < 0) {
+    if (additionalPayment < 0) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(ErrorMessages.montantNegatif),
@@ -94,7 +97,9 @@ class _EditInvoicePageState extends State<EditInvoicePage> {
       return;
     }
 
-    if (newAmountPaid > totalAmount) {
+    final updatedAmountPaid = amountPaid + additionalPayment;
+
+    if (updatedAmountPaid > totalAmount) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(ErrorMessages.montantSuperieurTotal),
@@ -104,8 +109,8 @@ class _EditInvoicePageState extends State<EditInvoicePage> {
       return;
     }
 
-    final newBalance = totalAmount - newAmountPaid;
-    final newStatus = _getStatus(newAmountPaid, totalAmount);
+    final newBalance = totalAmount - updatedAmountPaid;
+    final newStatus = _getStatus(updatedAmountPaid, totalAmount);
 
     setState(() => loading = true);
 
@@ -114,7 +119,7 @@ class _EditInvoicePageState extends State<EditInvoicePage> {
           .collection('invoices')
           .doc(widget.invoiceId)
           .update({
-        'amountPaid': newAmountPaid,
+        'amountPaid': updatedAmountPaid,
         'balance': newBalance,
         'paymentStatus': newStatus,
         'updatedAt': FieldValue.serverTimestamp(),
@@ -165,8 +170,9 @@ class _EditInvoicePageState extends State<EditInvoicePage> {
     }
 
     final newAmountPaid = double.tryParse(amountPaidController.text) ?? 0;
-    final newBalance = totalAmount - newAmountPaid;
-    final newStatus = _getStatus(newAmountPaid, totalAmount);
+    final previewUpdatedAmountPaid = amountPaid + newAmountPaid;
+    final newBalance = totalAmount - previewUpdatedAmountPaid;
+    final newStatus = _getStatus(previewUpdatedAmountPaid, totalAmount);
 
     return Scaffold(
       appBar: AppBar(
@@ -265,8 +271,8 @@ class _EditInvoicePageState extends State<EditInvoicePage> {
               controller: amountPaidController,
               keyboardType: TextInputType.numberWithOptions(decimal: true),
               decoration: InputDecoration(
-                labelText: 'Nouveau montant payé',
-                hintText: 'Entrez le montant payé',
+                labelText: 'Montant à ajouter',
+                hintText: 'Entrez le montant à ajouter au payé actuel',
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),

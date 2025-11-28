@@ -187,3 +187,4 @@ Si vous rencontrez des problèmes :
 3. Vérifier que l'appareil iOS est bien enregistré dans votre compte développeur
 
 
+

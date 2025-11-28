@@ -100,3 +100,4 @@ Le code est maintenant **100% compatible** avec les règles Firestore pour le st
 
 
 
+

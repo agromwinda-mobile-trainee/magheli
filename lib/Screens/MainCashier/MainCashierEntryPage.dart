@@ -364,3 +364,4 @@ class _MainCashierEntryPageState extends State<MainCashierEntryPage> {
   }
 }
 
+

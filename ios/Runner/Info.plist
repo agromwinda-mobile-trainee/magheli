@@ -54,5 +54,14 @@
 			<key>NSAllowsLocalNetworking</key>
 			<true/>
 		</dict>
+		<key>NSBluetoothAlwaysUsageDescription</key>
+		<string>Cette application utilise le Bluetooth pour se connecter à des imprimantes.</string>
+		<key>NSBluetoothPeripheralUsageDescription</key>
+		<string>Cette application utilise le Bluetooth pour se connecter à des imprimantes.</string>
+		<key>UIBackgroundModes</key>
+		<array>
+			<string>bluetooth-central</string>
+			<string>bluetooth-peripheral</string>
+		</array>
 	</dict>
 </plist>

@@ -112,3 +112,4 @@ Le fichier `REGLES_FIRESTORE_STOCK_CORRIGEES.txt` contient maintenant :
 
 
 
+

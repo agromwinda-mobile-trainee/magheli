@@ -34,14 +34,13 @@ class InvoicePrintService {
       final generator = Generator(PaperSize.mm80, await _getCapabilityProfile());
       List<int> bytes = [];
 
-      // En-tête
+      // En-tête (police réduite pour raccourcir la facture)
       bytes += generator.text(
         'MAGHALI',
         styles: const PosStyles(
           align: PosAlign.center,
           bold: true,
-          height: PosTextSize.size2,
-          width: PosTextSize.size2,
+          // taille normale (1x1) au lieu de 2x2
         ),
       );
       bytes += generator.text(
@@ -57,7 +56,7 @@ class InvoicePrintService {
         styles: const PosStyles(
           align: PosAlign.center,
           bold: true,
-          height: PosTextSize.size2,
+          // taille normale au lieu de height size2
         ),
       );
       bytes += generator.hr();
@@ -157,7 +156,10 @@ class InvoicePrintService {
         PosColumn(
           text: 'TOTAL:',
           width: 6,
-          styles: const PosStyles(bold: true, height: PosTextSize.size2),
+          styles: const PosStyles(
+            bold: true,
+            // taille normale pour réduire la longueur du ticket
+          ),
         ),
         PosColumn(
           text: '${totalAmount.toStringAsFixed(2)} FC',
@@ -165,7 +167,7 @@ class InvoicePrintService {
           styles: const PosStyles(
             align: PosAlign.right,
             bold: true,
-            height: PosTextSize.size2,
+            // taille normale au lieu de size2
           ),
         ),
       ]);
@@ -202,7 +204,7 @@ class InvoicePrintService {
         styles: const PosStyles(
           align: PosAlign.center,
           bold: true,
-          height: PosTextSize.size2,
+          // taille normale au lieu de size2
         ),
       );
       bytes += generator.hr();

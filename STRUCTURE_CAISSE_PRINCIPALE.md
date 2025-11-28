@@ -193,3 +193,4 @@ Les règles Firestore doivent permettre :
 3. **Traçabilité** : Tous les mouvements sont enregistrés avec le caissier, la date et la raison
 4. **Flexibilité** : Un mouvement peut avoir uniquement USD, uniquement FC, ou les deux
 
+

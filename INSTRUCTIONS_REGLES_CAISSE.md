@@ -155,3 +155,4 @@ Ces règles sont **sécurisées** et suivent le principe du **moindre privilège
 - Tous les autres utilisateurs peuvent seulement lire
 - Les validations empêchent les données invalides (montants négatifs, etc.)
 
+

@@ -41,3 +41,4 @@ Cette commande générera automatiquement toutes les tailles d'icônes nécessai
 
 
 
+

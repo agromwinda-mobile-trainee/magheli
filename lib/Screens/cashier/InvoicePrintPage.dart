@@ -1,7 +1,11 @@
-import 'package:blue_thermal_printer/blue_thermal_printer.dart';
+import 'dart:io';
+
+import 'package:blue_thermal_printer/blue_thermal_printer.dart' as bt_android;
+import 'package:bluetooth_print/bluetooth_print_model.dart' as bt_ios;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import '../../services/invoice_print_service.dart';
+import '../../services/ios_invoice_print_service.dart';
 import '../../common/error_messages.dart';
 
 class InvoicePrintPage extends StatefulWidget {
@@ -19,8 +23,13 @@ class InvoicePrintPage extends StatefulWidget {
 }
 
 class _InvoicePrintPageState extends State<InvoicePrintPage> {
-  List<BluetoothDevice> printers = [];
-  BluetoothDevice? selectedPrinter;
+  // Android
+  List<bt_android.BluetoothDevice> androidPrinters = [];
+  bt_android.BluetoothDevice? selectedAndroidPrinter;
+
+  // iOS
+  List<bt_ios.BluetoothDevice> iosPrinters = [];
+  bt_ios.BluetoothDevice? selectedIosPrinter;
   bool loading = false;
   bool searching = false;
   List<Map<String, dynamic>> products = [];
@@ -91,25 +100,45 @@ class _InvoicePrintPageState extends State<InvoicePrintPage> {
   Future<void> _searchPrinters() async {
     setState(() {
       searching = true;
-      printers = [];
-      selectedPrinter = null;
+      androidPrinters = [];
+      iosPrinters = [];
+      selectedAndroidPrinter = null;
+      selectedIosPrinter = null;
     });
 
     try {
-      final foundPrinters = await InvoicePrintService.getAvailablePrinters();
-      setState(() {
-        printers = foundPrinters;
-        searching = false;
-      });
+      if (Platform.isAndroid) {
+        final foundPrinters = await InvoicePrintService.getAvailablePrinters();
+        setState(() {
+          androidPrinters = foundPrinters;
+          searching = false;
+        });
 
-      if (foundPrinters.isEmpty) {
-        if (mounted) {
+        if (foundPrinters.isEmpty && mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text('Aucune imprimante Bluetooth trouvée. Assurez-vous que l\'imprimante est appairée avec votre appareil.'),
             ),
           );
         }
+      } else if (Platform.isIOS) {
+        final foundPrinters = await IosInvoicePrintService.getAvailablePrinters();
+        setState(() {
+          iosPrinters = foundPrinters;
+          searching = false;
+        });
+
+        if (foundPrinters.isEmpty && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Aucune imprimante Bluetooth trouvée. Assurez-vous que l\'imprimante est visible et à portée.'),
+            ),
+          );
+        }
+      } else {
+        setState(() {
+          searching = false;
+        });
       }
     } catch (e) {
       setState(() {
@@ -127,7 +156,10 @@ class _InvoicePrintPageState extends State<InvoicePrintPage> {
   }
 
   Future<void> _printInvoice() async {
-    if (selectedPrinter == null) {
+    final bool noPrinterSelected = (Platform.isAndroid && selectedAndroidPrinter == null) ||
+        (Platform.isIOS && selectedIosPrinter == null);
+
+    if (noPrinterSelected) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(ErrorMessages.imprimanteNonSelectionnee),
@@ -154,14 +186,25 @@ class _InvoicePrintPageState extends State<InvoicePrintPage> {
       final invoiceDataWithId = Map<String, dynamic>.from(widget.invoiceData);
       invoiceDataWithId['id'] = widget.invoiceId;
 
-      await InvoicePrintService.printInvoice(
-        printer: selectedPrinter!,
-        invoiceData: invoiceDataWithId,
-        products: products,
-        activityName: activityName ?? 'Activité inconnue',
-        serverName: serverName ?? 'Serveur inconnu',
-        clientName: clientName,
-      );
+      if (Platform.isAndroid && selectedAndroidPrinter != null) {
+        await InvoicePrintService.printInvoice(
+          printer: selectedAndroidPrinter!,
+          invoiceData: invoiceDataWithId,
+          products: products,
+          activityName: activityName ?? 'Activité inconnue',
+          serverName: serverName ?? 'Serveur inconnu',
+          clientName: clientName,
+        );
+      } else if (Platform.isIOS && selectedIosPrinter != null) {
+        await IosInvoicePrintService.printInvoice(
+          printer: selectedIosPrinter!,
+          invoiceData: invoiceDataWithId,
+          products: products,
+          activityName: activityName ?? 'Activité inconnue',
+          serverName: serverName ?? 'Serveur inconnu',
+          clientName: clientName,
+        );
+      }
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -196,6 +239,12 @@ class _InvoicePrintPageState extends State<InvoicePrintPage> {
       );
     }
 
+    final bool hasPrinters = Platform.isAndroid
+        ? androidPrinters.isNotEmpty
+        : Platform.isIOS
+            ? iosPrinters.isNotEmpty
+            : false;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Imprimer Facture', style: TextStyle(color: Colors.white)),
@@ -206,8 +255,10 @@ class _InvoicePrintPageState extends State<InvoicePrintPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'Sélectionner une imprimante Bluetooth',
+            Text(
+              Platform.isIOS
+                  ? 'Sélectionner une imprimante Bluetooth (iOS)'
+                  : 'Sélectionner une imprimante Bluetooth',
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
@@ -245,7 +296,7 @@ class _InvoicePrintPageState extends State<InvoicePrintPage> {
               ],
             ),
             const SizedBox(height: 16),
-            if (printers.isEmpty && !searching)
+            if (!hasPrinters && !searching)
               const Card(
                 child: Padding(
                   padding: EdgeInsets.all(16),
@@ -258,35 +309,75 @@ class _InvoicePrintPageState extends State<InvoicePrintPage> {
             else
               Expanded(
                 child: ListView.builder(
-                  itemCount: printers.length,
+                  itemCount: Platform.isAndroid
+                      ? androidPrinters.length
+                      : Platform.isIOS
+                          ? iosPrinters.length
+                          : 0,
                   itemBuilder: (context, index) {
-                    final printer = printers[index];
-                    final isSelected = selectedPrinter?.address == printer.address;
+                    if (Platform.isAndroid) {
+                      final printer = androidPrinters[index];
+                      final isSelected =
+                          selectedAndroidPrinter?.address == printer.address;
 
-                    return Card(
-                      color: isSelected ? Colors.blue[50] : null,
-                      child: ListTile(
-                        leading: Icon(
-                          Icons.print,
-                          color: isSelected ? Colors.blue : Colors.grey,
-                        ),
-                        title: Text(
-                          printer.name ?? 'Imprimante inconnue',
-                          style: TextStyle(
-                            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                      return Card(
+                        color: isSelected ? Colors.blue[50] : null,
+                        child: ListTile(
+                          leading: Icon(
+                            Icons.print,
+                            color: isSelected ? Colors.blue : Colors.grey,
                           ),
+                          title: Text(
+                            printer.name ?? 'Imprimante inconnue',
+                            style: TextStyle(
+                              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                            ),
+                          ),
+                          subtitle: Text(printer.address ?? ''),
+                          trailing: isSelected
+                              ? const Icon(Icons.check_circle, color: Colors.blue)
+                              : null,
+                          onTap: () {
+                            setState(() {
+                              selectedAndroidPrinter = printer;
+                              selectedIosPrinter = null;
+                            });
+                          },
                         ),
-                        subtitle: Text(printer.address ?? ''),
-                        trailing: isSelected
-                            ? const Icon(Icons.check_circle, color: Colors.blue)
-                            : null,
-                        onTap: () {
-                          setState(() {
-                            selectedPrinter = printer;
-                          });
-                        },
-                      ),
-                    );
+                      );
+                    } else if (Platform.isIOS) {
+                      final printer = iosPrinters[index];
+                      final isSelected =
+                          selectedIosPrinter?.address == printer.address;
+
+                      return Card(
+                        color: isSelected ? Colors.blue[50] : null,
+                        child: ListTile(
+                          leading: Icon(
+                            Icons.print,
+                            color: isSelected ? Colors.blue : Colors.grey,
+                          ),
+                          title: Text(
+                            printer.name ?? 'Imprimante inconnue',
+                            style: TextStyle(
+                              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                            ),
+                          ),
+                          subtitle: Text(printer.address ?? ''),
+                          trailing: isSelected
+                              ? const Icon(Icons.check_circle, color: Colors.blue)
+                              : null,
+                          onTap: () {
+                            setState(() {
+                              selectedIosPrinter = printer;
+                              selectedAndroidPrinter = null;
+                            });
+                          },
+                        ),
+                      );
+                    } else {
+                      return const SizedBox.shrink();
+                    }
                   },
                 ),
               ),
@@ -294,7 +385,11 @@ class _InvoicePrintPageState extends State<InvoicePrintPage> {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-                onPressed: (selectedPrinter == null || loading) ? null : _printInvoice,
+                onPressed: (Platform.isAndroid && selectedAndroidPrinter == null) ||
+                        (Platform.isIOS && selectedIosPrinter == null) ||
+                        loading
+                    ? null
+                    : _printInvoice,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.green,
                   foregroundColor: Colors.white,
